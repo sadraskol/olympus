@@ -1,11 +1,13 @@
-use crate::state::{Key, MachineValue, Member, ReadResult, Timestamp, Value, WriteResult};
+use std::collections::{HashMap, HashSet};
+
 use olympus::proto;
 use olympus::proto::hermes::{AckOrVal, HermesMessage, HermesMessage_HermesType};
 use olympus::proto::queries::{
     Answers, Answers_AnswerType, Commands, Commands_CommandType, Read, ReadAnswer, Write,
     WriteAnswer,
 };
-use std::collections::{HashMap, HashSet};
+
+use crate::state::{Key, MachineValue, Member, ReadResult, Timestamp, Value, WriteResult};
 
 fn write_command(key: &Key, value: &Value) -> Commands {
     let mut write = Commands::new();
