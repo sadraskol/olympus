@@ -741,6 +741,652 @@ impl ::protobuf::reflect::ProtobufValue for Commands_CommandType {
     }
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct ReadAnswer {
+    // message fields
+    is_nil: ::std::option::Option<bool>,
+    value: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a ReadAnswer {
+    fn default() -> &'a ReadAnswer {
+        <ReadAnswer as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl ReadAnswer {
+    pub fn new() -> ReadAnswer {
+        ::std::default::Default::default()
+    }
+
+    // required bool is_nil = 1;
+
+
+    pub fn get_is_nil(&self) -> bool {
+        self.is_nil.unwrap_or(false)
+    }
+    pub fn clear_is_nil(&mut self) {
+        self.is_nil = ::std::option::Option::None;
+    }
+
+    pub fn has_is_nil(&self) -> bool {
+        self.is_nil.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_is_nil(&mut self, v: bool) {
+        self.is_nil = ::std::option::Option::Some(v);
+    }
+
+    // optional bytes value = 2;
+
+
+    pub fn get_value(&self) -> &[u8] {
+        match self.value.as_ref() {
+            Some(v) => &v,
+            None => &[],
+        }
+    }
+    pub fn clear_value(&mut self) {
+        self.value.clear();
+    }
+
+    pub fn has_value(&self) -> bool {
+        self.value.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_value(&mut self, v: ::std::vec::Vec<u8>) {
+        self.value = ::protobuf::SingularField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_value(&mut self) -> &mut ::std::vec::Vec<u8> {
+        if self.value.is_none() {
+            self.value.set_default();
+        }
+        self.value.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_value(&mut self) -> ::std::vec::Vec<u8> {
+        self.value.take().unwrap_or_else(|| ::std::vec::Vec::new())
+    }
+}
+
+impl ::protobuf::Message for ReadAnswer {
+    fn is_initialized(&self) -> bool {
+        if self.is_nil.is_none() {
+            return false;
+        }
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_bool()?;
+                    self.is_nil = ::std::option::Option::Some(tmp);
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.value)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if let Some(v) = self.is_nil {
+            my_size += 2;
+        }
+        if let Some(ref v) = self.value.as_ref() {
+            my_size += ::protobuf::rt::bytes_size(2, &v);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if let Some(v) = self.is_nil {
+            os.write_bool(1, v)?;
+        }
+        if let Some(ref v) = self.value.as_ref() {
+            os.write_bytes(2, &v)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> ReadAnswer {
+        ReadAnswer::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
+                "is_nil",
+                |m: &ReadAnswer| { &m.is_nil },
+                |m: &mut ReadAnswer| { &mut m.is_nil },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
+                "value",
+                |m: &ReadAnswer| { &m.value },
+                |m: &mut ReadAnswer| { &mut m.value },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ReadAnswer>(
+                "ReadAnswer",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static ReadAnswer {
+        static instance: ::protobuf::rt::LazyV2<ReadAnswer> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(ReadAnswer::new)
+    }
+}
+
+impl ::protobuf::Clear for ReadAnswer {
+    fn clear(&mut self) {
+        self.is_nil = ::std::option::Option::None;
+        self.value.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for ReadAnswer {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for ReadAnswer {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
+pub struct WriteAnswer {
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a WriteAnswer {
+    fn default() -> &'a WriteAnswer {
+        <WriteAnswer as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl WriteAnswer {
+    pub fn new() -> WriteAnswer {
+        ::std::default::Default::default()
+    }
+}
+
+impl ::protobuf::Message for WriteAnswer {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> WriteAnswer {
+        WriteAnswer::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let fields = ::std::vec::Vec::new();
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<WriteAnswer>(
+                "WriteAnswer",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static WriteAnswer {
+        static instance: ::protobuf::rt::LazyV2<WriteAnswer> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(WriteAnswer::new)
+    }
+}
+
+impl ::protobuf::Clear for WriteAnswer {
+    fn clear(&mut self) {
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for WriteAnswer {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for WriteAnswer {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
+pub struct Answers {
+    // message fields
+    field_type: ::std::option::Option<Answers_AnswerType>,
+    pub read: ::protobuf::SingularPtrField<ReadAnswer>,
+    pub write: ::protobuf::SingularPtrField<WriteAnswer>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a Answers {
+    fn default() -> &'a Answers {
+        <Answers as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl Answers {
+    pub fn new() -> Answers {
+        ::std::default::Default::default()
+    }
+
+    // required .Answers.AnswerType type = 1;
+
+
+    pub fn get_field_type(&self) -> Answers_AnswerType {
+        self.field_type.unwrap_or(Answers_AnswerType::Read)
+    }
+    pub fn clear_field_type(&mut self) {
+        self.field_type = ::std::option::Option::None;
+    }
+
+    pub fn has_field_type(&self) -> bool {
+        self.field_type.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_field_type(&mut self, v: Answers_AnswerType) {
+        self.field_type = ::std::option::Option::Some(v);
+    }
+
+    // optional .ReadAnswer read = 2;
+
+
+    pub fn get_read(&self) -> &ReadAnswer {
+        self.read.as_ref().unwrap_or_else(|| <ReadAnswer as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_read(&mut self) {
+        self.read.clear();
+    }
+
+    pub fn has_read(&self) -> bool {
+        self.read.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_read(&mut self, v: ReadAnswer) {
+        self.read = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_read(&mut self) -> &mut ReadAnswer {
+        if self.read.is_none() {
+            self.read.set_default();
+        }
+        self.read.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_read(&mut self) -> ReadAnswer {
+        self.read.take().unwrap_or_else(|| ReadAnswer::new())
+    }
+
+    // optional .WriteAnswer write = 3;
+
+
+    pub fn get_write(&self) -> &WriteAnswer {
+        self.write.as_ref().unwrap_or_else(|| <WriteAnswer as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_write(&mut self) {
+        self.write.clear();
+    }
+
+    pub fn has_write(&self) -> bool {
+        self.write.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_write(&mut self, v: WriteAnswer) {
+        self.write = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_write(&mut self) -> &mut WriteAnswer {
+        if self.write.is_none() {
+            self.write.set_default();
+        }
+        self.write.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_write(&mut self) -> WriteAnswer {
+        self.write.take().unwrap_or_else(|| WriteAnswer::new())
+    }
+}
+
+impl ::protobuf::Message for Answers {
+    fn is_initialized(&self) -> bool {
+        if self.field_type.is_none() {
+            return false;
+        }
+        for v in &self.read {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        for v in &self.write {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_proto2_enum_with_unknown_fields_into(wire_type, is, &mut self.field_type, 1, &mut self.unknown_fields)?
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.read)?;
+                },
+                3 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.write)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if let Some(v) = self.field_type {
+            my_size += ::protobuf::rt::enum_size(1, v);
+        }
+        if let Some(ref v) = self.read.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
+        if let Some(ref v) = self.write.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if let Some(v) = self.field_type {
+            os.write_enum(1, ::protobuf::ProtobufEnum::value(&v))?;
+        }
+        if let Some(ref v) = self.read.as_ref() {
+            os.write_tag(2, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
+        if let Some(ref v) = self.write.as_ref() {
+            os.write_tag(3, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> Answers {
+        Answers::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeEnum<Answers_AnswerType>>(
+                "type",
+                |m: &Answers| { &m.field_type },
+                |m: &mut Answers| { &mut m.field_type },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<ReadAnswer>>(
+                "read",
+                |m: &Answers| { &m.read },
+                |m: &mut Answers| { &mut m.read },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<WriteAnswer>>(
+                "write",
+                |m: &Answers| { &m.write },
+                |m: &mut Answers| { &mut m.write },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Answers>(
+                "Answers",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static Answers {
+        static instance: ::protobuf::rt::LazyV2<Answers> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(Answers::new)
+    }
+}
+
+impl ::protobuf::Clear for Answers {
+    fn clear(&mut self) {
+        self.field_type = ::std::option::Option::None;
+        self.read.clear();
+        self.write.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for Answers {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for Answers {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(Clone,PartialEq,Eq,Debug,Hash)]
+pub enum Answers_AnswerType {
+    Read = 0,
+    Write = 1,
+}
+
+impl ::protobuf::ProtobufEnum for Answers_AnswerType {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<Answers_AnswerType> {
+        match value {
+            0 => ::std::option::Option::Some(Answers_AnswerType::Read),
+            1 => ::std::option::Option::Some(Answers_AnswerType::Write),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [Answers_AnswerType] = &[
+            Answers_AnswerType::Read,
+            Answers_AnswerType::Write,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            ::protobuf::reflect::EnumDescriptor::new_pb_name::<Answers_AnswerType>("Answers.AnswerType", file_descriptor_proto())
+        })
+    }
+}
+
+impl ::std::marker::Copy for Answers_AnswerType {
+}
+
+impl ::std::default::Default for Answers_AnswerType {
+    fn default() -> Self {
+        Answers_AnswerType::Read
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for Answers_AnswerType {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Enum(::protobuf::ProtobufEnum::descriptor(self))
+    }
+}
+
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\rqueries.proto\"\x18\n\x04Read\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\
     \x03key\"/\n\x05Write\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\x12\
@@ -748,6 +1394,12 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x12)\n\x04type\x18\x01\x20\x02(\x0e2\x15.Commands.CommandTypeR\x04type\
     \x12\x19\n\x04read\x18\x02\x20\x01(\x0b2\x05.ReadR\x04read\x12\x1c\n\x05\
     write\x18\x03\x20\x01(\x0b2\x06.WriteR\x05write\"\"\n\x0bCommandType\x12\
+    \x08\n\x04Read\x10\0\x12\t\n\x05Write\x10\x01\"9\n\nReadAnswer\x12\x15\n\
+    \x06is_nil\x18\x01\x20\x02(\x08R\x05isNil\x12\x14\n\x05value\x18\x02\x20\
+    \x01(\x0cR\x05value\"\r\n\x0bWriteAnswer\"\x9a\x01\n\x07Answers\x12'\n\
+    \x04type\x18\x01\x20\x02(\x0e2\x13.Answers.AnswerTypeR\x04type\x12\x1f\n\
+    \x04read\x18\x02\x20\x01(\x0b2\x0b.ReadAnswerR\x04read\x12\"\n\x05write\
+    \x18\x03\x20\x01(\x0b2\x0c.WriteAnswerR\x05write\"!\n\nAnswerType\x12\
     \x08\n\x04Read\x10\0\x12\t\n\x05Write\x10\x01\
 ";
 

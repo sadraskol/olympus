@@ -1,28 +1,30 @@
+use crate::hermes::ClientId;
 use std::collections::HashSet;
 
-
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-struct Key(Vec<u8>);
+pub struct Key(pub Vec<u8>);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct Value(Vec<u8>);
+pub struct Value(pub Vec<u8>);
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-struct Member(i32);
+#[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub struct Member(pub i32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum State {
     Valid,
     Inv,
     Write(
+        // client asking for write
+        ClientId,
         // received acks
-        HashSet<Member>
+        HashSet<Member>,
     ),
 }
 
 impl State {
     fn can_be_invalidated(&self) -> bool {
-        if let State::Write(_) = self {
+        if let State::Write(_, _) = self {
             true
         } else {
             self == &State::Valid || self == &State::Inv
@@ -31,37 +33,37 @@ impl State {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct MachineValue {
+pub struct MachineValue {
     value: Value,
     state: State,
-    timestamp: Timestamp,
+    pub timestamp: Timestamp,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum ReadResult {
+pub enum ReadResult {
     Pending,
     Value(Value),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum WriteResult {
+pub enum WriteResult {
     Rejected,
     Accepted,
 }
 
 impl MachineValue {
     // TODO replay the write if invalidated since longer then the mlt (timeout)
-    fn read(self) -> ReadResult {
+    pub fn read(&self) -> ReadResult {
         if self.state == State::Valid {
-            ReadResult::Value(self.value)
+            ReadResult::Value(self.value.clone())
         } else {
             ReadResult::Pending
         }
     }
 
-    fn write(&mut self, value: Value) -> WriteResult {
+    pub fn write(&mut self, client: ClientId, value: Value) -> WriteResult {
         if self.state == State::Valid {
-            self.state = State::Write(HashSet::new());
+            self.state = State::Write(client, HashSet::new());
             self.value = value;
             WriteResult::Accepted
         } else {
@@ -69,35 +71,44 @@ impl MachineValue {
         }
     }
 
-    fn ack(&mut self, member: Member) {
-        if let State::Write(ref mut acks) = self.state {
+    pub fn write_default(client: ClientId, value: Value, ts: Timestamp) -> Self {
+        MachineValue {
+            value,
+            state: State::Write(client, HashSet::new()),
+            timestamp: ts,
+        }
+    }
+
+    pub fn ack(&mut self, member: Member) {
+        if let State::Write(_, ref mut acks) = self.state {
             acks.insert(member);
         }
     }
 
     /// check if acks is compatible with members in the cluster.
     /// returns true when a valid message should be sent
-    fn ack_write_against(&mut self, membership: &HashSet<Member>) -> bool {
-        if let State::Write(ref mut acks) = self.state {
+    pub fn ack_write_against(&mut self, membership: &HashSet<Member>) -> Option<ClientId> {
+        if let State::Write(ref client_id, ref mut acks) = self.state {
             if membership.is_subset(acks) {
+                let cid = client_id.clone();
                 self.state = State::Valid;
-                true
+                Some(cid)
             } else {
-                false
+                None
             }
         } else {
-            false
+            None
         }
     }
 
-    fn validate(&mut self, ts: Timestamp) {
+    pub fn validate(&mut self, ts: Timestamp) {
         if self.state == State::Inv && self.timestamp == ts {
             self.state = State::Valid;
             self.timestamp = ts;
         }
     }
 
-    fn invalid(&mut self, ts: Timestamp, value: Value) {
+    pub fn invalid(&mut self, ts: Timestamp, value: Value) {
         if ts > self.timestamp && self.state.can_be_invalidated() {
             self.state = State::Inv;
             self.timestamp = ts;
@@ -107,14 +118,18 @@ impl MachineValue {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-struct Timestamp {
-    version: u32,
-    c_id: u32,
+pub struct Timestamp {
+    pub version: u32,
+    pub c_id: u32,
 }
 
 impl Timestamp {
-    fn new(version: u32, c_id: u32) -> Self {
+    pub fn new(version: u32, c_id: u32) -> Self {
         Timestamp { version, c_id }
+    }
+
+    pub fn increment(&mut self) {
+        self.version += 1;
     }
 }
 
@@ -123,6 +138,7 @@ mod test_reads {
     use std::collections::HashSet;
 
     use crate::state::{MachineValue, ReadResult, State, Timestamp, Value};
+    use crate::ClientId;
 
     #[test]
     fn reading_a_valid_value_works() {
@@ -150,7 +166,7 @@ mod test_reads {
     fn hermes_reading_a_write_value_is_postponed() {
         let state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Write(HashSet::new()),
+            state: State::Write(ClientId(1), HashSet::new()),
             timestamp: Timestamp::new(0, 0),
         };
 
@@ -164,6 +180,7 @@ mod test_coordinator_writes {
     use std::iter::FromIterator;
 
     use crate::state::{MachineValue, Member, State, Timestamp, Value, WriteResult};
+    use crate::ClientId;
 
     #[test]
     fn writing_to_a_valid_value_enters_in_write_state() {
@@ -173,13 +190,13 @@ mod test_coordinator_writes {
             timestamp: Timestamp::new(0, 0),
         };
 
-        let res = state.write(Value(vec![3, 2, 1]));
+        let res = state.write(ClientId(1), Value(vec![3, 2, 1]));
         assert_eq!(res, WriteResult::Accepted);
         assert_eq!(
             state,
             MachineValue {
                 value: Value(vec![3, 2, 1]),
-                state: State::Write(HashSet::new()),
+                state: State::Write(ClientId(1), HashSet::new()),
                 timestamp: Timestamp::new(0, 0),
             }
         );
@@ -189,7 +206,7 @@ mod test_coordinator_writes {
     fn acks_are_accumulated_into_the_state() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Write(HashSet::new()),
+            state: State::Write(ClientId(1), HashSet::new()),
             timestamp: Timestamp::new(0, 0),
         };
 
@@ -199,7 +216,7 @@ mod test_coordinator_writes {
             state,
             MachineValue {
                 value: Value(vec![1, 2, 3]),
-                state: State::Write(HashSet::from_iter(vec![Member(3), Member(1)])),
+                state: State::Write(ClientId(1), HashSet::from_iter(vec![Member(3), Member(1)])),
                 timestamp: Timestamp::new(0, 0),
             }
         );
@@ -209,13 +226,13 @@ mod test_coordinator_writes {
     fn when_write_is_universally_acked_write_is_committed() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Write(HashSet::from_iter(vec![Member(3), Member(1)])),
+            state: State::Write(ClientId(1), HashSet::from_iter(vec![Member(3), Member(1)])),
             timestamp: Timestamp::new(0, 0),
         };
 
         let validate_write =
             state.ack_write_against(&HashSet::from_iter(vec![Member(3), Member(1)]));
-        assert!(validate_write);
+        assert_eq!(validate_write, Some(ClientId(1)));
         assert_eq!(
             state,
             MachineValue {
@@ -235,7 +252,7 @@ mod test_coordinator_writes {
         };
         let expected = state.clone();
 
-        let res = state.write(Value(vec![3, 2, 1]));
+        let res = state.write(ClientId(1), Value(vec![3, 2, 1]));
         assert_eq!(res, WriteResult::Rejected);
         assert_eq!(state, expected);
     }
@@ -244,12 +261,12 @@ mod test_coordinator_writes {
     fn write_on_write_key_is_canceled() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Write(HashSet::new()),
+            state: State::Write(ClientId(1), HashSet::new()),
             timestamp: Timestamp::new(0, 0),
         };
         let expected = state.clone();
 
-        let res = state.write(Value(vec![3, 2, 1]));
+        let res = state.write(ClientId(1), Value(vec![3, 2, 1]));
         assert_eq!(res, WriteResult::Rejected);
         assert_eq!(state, expected);
     }
@@ -265,12 +282,13 @@ mod invalid_state {
     use std::iter::FromIterator;
 
     use crate::state::{MachineValue, Member, State, Timestamp, Value};
+    use crate::ClientId;
 
     #[test]
     fn invalidation_from_the_past_during_write_is_ignored() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Write(HashSet::new()),
+            state: State::Write(ClientId(1), HashSet::new()),
             timestamp: Timestamp::new(100, 100),
         };
         let expected = state.clone();
@@ -283,7 +301,7 @@ mod invalid_state {
     fn invalidation_from_the_future_during_write_is_invalidating() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Write(HashSet::from_iter(vec![Member(1), Member(3)])),
+            state: State::Write(ClientId(1), HashSet::from_iter(vec![Member(1), Member(3)])),
             timestamp: Timestamp::new(1, 1),
         };
         state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));

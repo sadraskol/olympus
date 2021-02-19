@@ -1,0 +1,31 @@
+syntax = "proto2";
+
+message Timestamp {
+  required uint32 version = 1;
+  required uint32 cid = 2;
+}
+
+message AckOrVal {
+  required bytes key = 1;
+  // epoch = 2
+  required Timestamp ts = 3;
+}
+
+message Inv {
+  required bytes key = 1;
+  // epoch = 2
+  required Timestamp ts = 3;
+  // rmw = 4
+  required bytes value = 5;
+}
+
+message HermesMessage {
+  enum HermesType {
+    Inv = 0;
+    Val = 1;
+    Ack = 2;
+  }
+  required HermesType type = 1;
+  optional Inv inv = 2;
+  optional AckOrVal ack_or_val = 3;
+}

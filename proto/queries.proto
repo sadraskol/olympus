@@ -18,3 +18,21 @@ message Commands {
   optional Read read = 2;
   optional Write write = 3;
 }
+
+
+message ReadAnswer {
+  required bool is_nil = 1;
+  optional bytes value = 2;
+}
+
+message WriteAnswer {}
+
+message Answers {
+  enum AnswerType {
+    Read = 0;
+    Write = 1;
+  }
+  required AnswerType type = 1;
+  optional ReadAnswer read = 2;
+  optional WriteAnswer write = 3;
+}
