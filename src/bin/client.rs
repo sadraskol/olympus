@@ -1,11 +1,14 @@
 use olympus::proto::queries;
 use protobuf::Message;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use tokio::net::TcpStream;
+use olympus::proto::queries::Answers;
+use olympus::config::cfg;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let mut stream = TcpStream::connect("127.0.0.1:12345").await?;
+    let config = cfg()?;
+    let mut stream = TcpStream::connect(config.client_addr()).await?;
 
     let mut read = queries::Read::new();
     read.set_key(vec![1, 2, 3]);
@@ -18,9 +21,14 @@ async fn main() -> std::io::Result<()> {
     stream.write_u64(buf.len() as u64).await?;
     stream.write_all(&buf).await?;
     stream.flush().await?;
-    let mut str = String::new();
-    BufReader::new(&mut stream).read_line(&mut str).await?;
+    println!("flushed request");
 
-    println!("answer: {}", str);
+    let response_size = stream.read_u64().await?;
+    let mut buf = vec![0; response_size as usize];
+    stream.read_exact(&mut buf).await?;
+
+    let result = Answers::parse_from_bytes(&buf).unwrap();
+
+    println!("answer: {:?}", result);
     Ok(())
 }

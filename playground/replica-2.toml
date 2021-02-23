@@ -1,0 +1,15 @@
+host = "127.0.0.1"
+port = 4242
+internal_port = 12002
+storage = "playground/data/2"
+id = 2
+
+[[peers]]
+host = "127.0.0.1"
+port = 12001
+id = 1
+
+[[peers]]
+host = "127.0.0.1"
+port = 12003
+id = 3

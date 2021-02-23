@@ -117,6 +117,7 @@ impl Hermes {
     }
 
     pub fn run(&mut self) -> Vec<HMessage> {
+        println!("running hermes");
         let mut output = vec![];
         while let Some(ref msg) = self.inbox.pop() {
             match msg {
@@ -139,6 +140,10 @@ impl Hermes {
                                 }
                             } else {
                                 // TODO answer nil
+                                output.push(HMessage::Answer(
+                                    client_id.clone(),
+                                    read_answer_of(&Value(vec![])),
+                                ));
                             }
                         }
                         Commands_CommandType::Write => {
@@ -202,6 +207,7 @@ impl Hermes {
     }
 
     pub fn receive(&mut self, message: HMessage) {
+        println!("hermes receives a message");
         self.inbox.push(message);
     }
 
