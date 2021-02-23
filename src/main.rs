@@ -35,7 +35,7 @@ impl ClientGen {
         }
     }
 
-    fn gen(&mut self) -> ClientId {
+    fn gen(&self) -> ClientId {
         ClientId(
             self.current
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
@@ -43,48 +43,147 @@ impl ClientGen {
     }
 }
 
+#[derive(Clone)]
+pub struct Membership {
+    list: Shared<Vec<(Member, SocketAddr)>>,
+}
+
+impl Membership {
+    fn new() -> Self {
+        let peers_in = vec![
+            (Member(1), SocketAddr::from_str("127.0.0.1:12301").unwrap()),
+            (Member(2), SocketAddr::from_str("127.0.0.1:12302").unwrap()),
+        ];
+
+        Membership {
+            list: Arc::new(Mutex::new(peers_in)),
+        }
+    }
+
+    fn addr_by(&self, key: &Member) -> SocketAddr {
+        let guard = self.list.lock().unwrap();
+        for (mem, addr) in &*guard {
+            if mem == key {
+                return *addr;
+            }
+        }
+        panic!("No peer of number {:?}", key);
+    }
+
+    fn member_by(&self, key: &SocketAddr) -> Member {
+        let guard = self.list.lock().unwrap();
+        for (mem, addr) in &*guard {
+            if key == addr {
+                return mem.clone();
+            }
+        }
+        panic!("No peer of number {:?}", key);
+    }
+}
+
+#[derive(Clone)]
+pub struct SharedState {
+    clients: Shared<HashMap<ClientId, AnswerLatch>>,
+    hermes: Shared<Hermes>,
+    peers: Membership,
+    client_gen: ClientGen,
+}
+
+impl SharedState {
+    fn new() -> Self {
+        SharedState {
+            clients: Arc::new(Mutex::new(HashMap::new())),
+            hermes: Arc::new(Mutex::new(Hermes::new(1))),
+            peers: Membership::new(),
+            client_gen: ClientGen::new(),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let mut peers_in = HashMap::new();
-    peers_in.insert(Member(1), SocketAddr::from_str("127.0.0.1:12301").unwrap());
-    peers_in.insert(Member(2), SocketAddr::from_str("127.0.0.1:12302").unwrap());
+    let state = SharedState::new();
 
-    let client_gen = ClientGen::new();
-    let clients = Arc::new(Mutex::new(HashMap::new()));
-    let hermes_intern = Hermes::new(1);
-    let hermes = Arc::new(Mutex::new(hermes_intern));
-    let peers = Arc::new(peers_in);
+    client_listener(state.clone()).await;
+    hermes_listener(state).await;
 
-    let listener = TcpListener::bind("127.0.0.1:12345").await?;
+    Ok(())
+}
 
-    loop {
-        let (stream, _) = listener.accept().await?;
+async fn hermes_listener(shared_state: SharedState) {
+    tokio::spawn(async move {
+        let listener = TcpListener::bind("127.0.0.1:12346").await.unwrap();
 
-        let arc = peers.clone();
-        let mut gen = client_gen.clone();
-        let mut c = clients.clone();
-        let mut h = hermes.clone();
-        tokio::spawn(async move {
-            socket_handler(&arc, &mut gen, &mut c, &mut h, stream)
-                .await
-                .unwrap();
-        });
+        loop {
+            if let Ok((stream, _)) = listener.accept().await {
+                let state = shared_state.clone();
+                tokio::spawn(async move {
+                    peer_socket_handler(state, stream).await.unwrap();
+                });
+            }
+        }
+    });
+}
+
+async fn peer_socket_handler(state: SharedState, mut stream: TcpStream) -> std::io::Result<()> {
+    let peer_id = state.peers.member_by(&stream.peer_addr()?);
+
+    let messages = {
+        let size = stream.read_u64().await?;
+        let mut buf = vec![0; size as usize];
+        stream.read_exact(&mut buf).await?;
+
+        let message = HermesMessage::parse_from_bytes(&buf).unwrap();
+        let mut guard = state.hermes.lock().unwrap();
+        guard.receive(HMessage::Sync(peer_id, message));
+        guard.run()
+    };
+    for message in messages {
+        match message {
+            HMessage::Sync(member, msg) => {
+                let socket = state.peers.addr_by(&member);
+                tokio::spawn(async move {
+                    send_sync_message(&socket, msg).await.unwrap();
+                });
+            }
+            HMessage::Client(_, _) => {
+                panic!("client message in return to a hermes run??");
+            }
+            HMessage::Answer(client, answer) => {
+                let map = state.clients.lock().unwrap();
+                let pair = map.get(&client).unwrap().clone();
+                let (m, c) = &*pair;
+                let mut inbox = m.lock().unwrap();
+                *inbox = Some(answer);
+                c.notify_all();
+            }
+        }
     }
     Ok(())
 }
 
-async fn socket_handler(
-    peers: &Arc<HashMap<Member, SocketAddr>>,
-    client_gen: &mut ClientGen,
-    clients: &mut Shared<HashMap<ClientId, AnswerLatch>>,
-    hermes: &mut Shared<Hermes>,
-    mut stream: TcpStream,
-) -> std::io::Result<()> {
-    let client_id = client_gen.gen();
+async fn client_listener(shared_state: SharedState) {
+    tokio::spawn(async move {
+        let listener = TcpListener::bind("127.0.0.1:12345").await.unwrap();
+
+        loop {
+            if let Ok((stream, _)) = listener.accept().await {
+                let state = shared_state.clone();
+                tokio::spawn(async move {
+                    client_socket_handler(state, stream).await.unwrap();
+                });
+            }
+            // else skip socket
+        }
+    });
+}
+
+async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std::io::Result<()> {
+    let client_id = state.client_gen.gen();
     let pair = Arc::new((Mutex::new(None), Condvar::new()));
     let local_pair = pair.clone();
     {
-        let mut x = clients.lock().unwrap();
+        let mut x = state.clients.lock().unwrap();
         x.insert(client_id.clone(), pair);
     }
 
@@ -94,7 +193,7 @@ async fn socket_handler(
         stream.read_exact(&mut buf).await?;
 
         let command = Commands::parse_from_bytes(&buf).unwrap();
-        let mut guard = hermes.lock().unwrap();
+        let mut guard = state.hermes.lock().unwrap();
         guard.receive(HMessage::Client(client_id, command));
         guard.run()
     };
@@ -102,12 +201,14 @@ async fn socket_handler(
     let mut maybe_response = None;
     for message in messages {
         match message {
-            HMessage::Client(_, _) => {}
+            HMessage::Client(_, _) => {
+                panic!("client message in return to a hermes run??");
+            }
             HMessage::Answer(_, response) => {
                 maybe_response = Some(response);
             }
             HMessage::Sync(member, msg) => {
-                let socket = *peers.get(&member).unwrap();
+                let socket = state.peers.addr_by(&member);
                 tokio::spawn(async move {
                     send_sync_message(&socket, msg).await.unwrap();
                 });
