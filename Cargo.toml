@@ -13,6 +13,7 @@ protobuf = "2.18.1"
 crossbeam = "0.8.0"
 serde = { version = "1.0.115", features = ["derive"] }
 toml = "0.5.8"
+rand = "0.8.3"
 
 [dev-dependencies]
 

@@ -3,29 +3,19 @@ use std::collections::{HashMap, HashSet};
 use olympus::proto;
 use olympus::proto::hermes::{AckOrVal, HermesMessage, HermesMessage_HermesType};
 use olympus::proto::queries::{
-    Answers, Answers_AnswerType, Commands, Commands_CommandType, Read, ReadAnswer, Write,
+    Answers, Answers_AnswerType, Commands, Commands_CommandType, ReadAnswer,
     WriteAnswer,
 };
 
 use crate::state::{Key, MachineValue, Member, ReadResult, Timestamp, Value, WriteResult};
 
-fn write_command(key: &Key, value: &Value) -> Commands {
-    let mut write = Commands::new();
-    write.set_field_type(Commands_CommandType::Write);
-    let mut writing = Write::new();
-    writing.set_key(key.0.clone());
-    writing.set_value(value.0.clone());
-    write.set_write(writing);
-    write
-}
-
-fn read_command(key: &Key) -> Commands {
-    let mut read = Commands::new();
-    read.set_field_type(Commands_CommandType::Read);
-    let mut reading = Read::new();
-    reading.set_key(key.0.clone());
-    read.set_read(reading);
-    read
+fn nil_read_answer() -> Answers {
+    let mut answer = Answers::new();
+    answer.set_field_type(Answers_AnswerType::Read);
+    let mut read = ReadAnswer::new();
+    read.set_is_nil(true);
+    answer.set_read(read);
+    answer
 }
 
 fn read_answer_of(value: &Value) -> Answers {
@@ -117,16 +107,18 @@ impl Hermes {
     }
 
     pub fn run(&mut self) -> Vec<HMessage> {
-        println!("running hermes");
+        println!("{:?}", self);
         let mut output = vec![];
         while let Some(ref msg) = self.inbox.pop() {
             match msg {
                 HMessage::Client(client_id, command) => {
                     match command.get_field_type() {
                         Commands_CommandType::Read => {
-                            if let Some(value) =
-                                self.keys.get(&Key(command.get_read().get_key().to_vec()))
-                            {
+                            let key = Key(command.get_read().get_key().to_vec());
+
+                            println!("reading key: {:?}", key);
+
+                            if let Some(value) = self.keys.get(&key) {
                                 match value.read() {
                                     ReadResult::Pending => {
                                         self.pending_reads.push(msg.clone());
@@ -139,10 +131,9 @@ impl Hermes {
                                     }
                                 }
                             } else {
-                                // TODO answer nil
                                 output.push(HMessage::Answer(
                                     client_id.clone(),
-                                    read_answer_of(&Value(vec![])),
+                                    nil_read_answer(),
                                 ));
                             }
                         }
@@ -150,8 +141,15 @@ impl Hermes {
                             self.ts.increment();
                             let key = Key(command.get_write().get_key().to_vec());
                             let value = Value(command.get_write().get_value().to_vec());
+
+                            println!("writing key: {:?}, value: {:?}, ts: {:?}", key, value, self.ts);
+
                             if let Some(machine) = self.keys.get_mut(&key) {
-                                let state = machine.write(client_id.clone(), value.clone());
+                                let state = machine.write(
+                                    client_id.clone(),
+                                    value.clone(),
+                                    self.ts.clone()
+                                );
                                 if state == WriteResult::Accepted {
                                     for member in &self.members {
                                         output.push(HMessage::Sync(
@@ -163,7 +161,7 @@ impl Hermes {
                             } else {
                                 self.keys.insert(
                                     key.clone(),
-                                    MachineValue::write_default(
+                                    MachineValue::write_value(
                                         client_id.clone(),
                                         value.clone(),
                                         self.ts.clone(),
@@ -180,9 +178,31 @@ impl Hermes {
                     }
                 }
                 HMessage::Sync(member, msg) => match msg.get_field_type() {
-                    HermesMessage_HermesType::Inv => {}
+                    HermesMessage_HermesType::Inv => {
+                        let key = Key(msg.get_inv().get_key().to_vec());
+                        let value = Value(msg.get_inv().get_value().to_vec());
+                        let ts = Timestamp::new(
+                            msg.get_inv().get_ts().get_version(),
+                            msg.get_inv().get_ts().get_cid(),
+                        );
+
+                        println!("invalidate key: {:?}, value: {:?}, ts: {:?}", key, value, ts);
+
+                        if let Some(machine) = self.keys.get_mut(&key) {
+                            machine.invalid(ts.clone(), value);
+                        } else {
+                            self.keys.insert(key.clone(), MachineValue::invalid_value(ts.clone(), value));
+                        }
+                        output.push(HMessage::Sync(
+                            member.clone(),
+                            ack_msg(&key, &ts),
+                        ));
+                    }
                     HermesMessage_HermesType::Ack => {
                         let key = Key(msg.get_ack_or_val().get_key().to_vec());
+
+                        println!("ack key: {:?}", key);
+
                         if let Some(machine) = self.keys.get_mut(&key) {
                             machine.ack(member.clone());
                             if let Some(client_id) = machine.ack_write_against(&self.members) {
@@ -196,7 +216,19 @@ impl Hermes {
                             }
                         }
                     }
-                    HermesMessage_HermesType::Val => {}
+                    HermesMessage_HermesType::Val => {
+                        let key = Key(msg.get_ack_or_val().get_key().to_vec());
+                        let ts = Timestamp::new(
+                            msg.get_ack_or_val().get_ts().get_version(),
+                            msg.get_ack_or_val().get_ts().get_cid(),
+                        );
+
+                        println!("validate key: {:?}, ts: {:?}", key, ts);
+
+                        if let Some(machine) = self.keys.get_mut(&key) {
+                            machine.validate(ts.clone());
+                        }
+                    }
                 },
                 HMessage::Answer(c, d) => {
                     panic!("answer {:?} for {:?} in inbox!", d, c);
@@ -207,7 +239,6 @@ impl Hermes {
     }
 
     pub fn receive(&mut self, message: HMessage) {
-        println!("hermes receives a message");
         self.inbox.push(message);
     }
 
@@ -222,11 +253,32 @@ mod hermes_test {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
+    use olympus::proto::queries::{Commands, Commands_CommandType, Read, Write};
+
     use crate::hermes::{
-        ack_msg, inv_msg, read_answer_of, read_command, val_msg, write_answer_ok, write_command,
-        ClientId, HMessage, Hermes,
+        ack_msg, ClientId, Hermes, HMessage, inv_msg, read_answer_of,
+        val_msg, write_answer_ok
     };
     use crate::state::{Key, Member, Timestamp, Value};
+
+    fn write_command(key: &Key, value: &Value) -> Commands {
+        let mut write = Commands::new();
+        write.set_field_type(Commands_CommandType::Write);
+        let mut writing = Write::new();
+        writing.set_key(key.0.clone());
+        writing.set_value(value.0.clone());
+        write.set_write(writing);
+        write
+    }
+
+    fn read_command(key: &Key) -> Commands {
+        let mut read = Commands::new();
+        read.set_field_type(Commands_CommandType::Read);
+        let mut reading = Read::new();
+        reading.set_key(key.0.clone());
+        read.set_read(reading);
+        read
+    }
 
     fn msg_by_member(left: &HMessage, right: &HMessage) -> Ordering {
         match left {

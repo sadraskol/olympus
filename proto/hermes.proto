@@ -28,4 +28,5 @@ message HermesMessage {
   required HermesType type = 1;
   optional Inv inv = 2;
   optional AckOrVal ack_or_val = 3;
+  required uint32 sender_id = 4;
 }

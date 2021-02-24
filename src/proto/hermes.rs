@@ -749,6 +749,7 @@ pub struct HermesMessage {
     field_type: ::std::option::Option<HermesMessage_HermesType>,
     pub inv: ::protobuf::SingularPtrField<Inv>,
     pub ack_or_val: ::protobuf::SingularPtrField<AckOrVal>,
+    sender_id: ::std::option::Option<u32>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -849,11 +850,33 @@ impl HermesMessage {
     pub fn take_ack_or_val(&mut self) -> AckOrVal {
         self.ack_or_val.take().unwrap_or_else(|| AckOrVal::new())
     }
+
+    // required uint32 sender_id = 4;
+
+
+    pub fn get_sender_id(&self) -> u32 {
+        self.sender_id.unwrap_or(0)
+    }
+    pub fn clear_sender_id(&mut self) {
+        self.sender_id = ::std::option::Option::None;
+    }
+
+    pub fn has_sender_id(&self) -> bool {
+        self.sender_id.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_sender_id(&mut self, v: u32) {
+        self.sender_id = ::std::option::Option::Some(v);
+    }
 }
 
 impl ::protobuf::Message for HermesMessage {
     fn is_initialized(&self) -> bool {
         if self.field_type.is_none() {
+            return false;
+        }
+        if self.sender_id.is_none() {
             return false;
         }
         for v in &self.inv {
@@ -882,6 +905,13 @@ impl ::protobuf::Message for HermesMessage {
                 3 => {
                     ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.ack_or_val)?;
                 },
+                4 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.sender_id = ::std::option::Option::Some(tmp);
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -905,6 +935,9 @@ impl ::protobuf::Message for HermesMessage {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
         }
+        if let Some(v) = self.sender_id {
+            my_size += ::protobuf::rt::value_size(4, v, ::protobuf::wire_format::WireTypeVarint);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -923,6 +956,9 @@ impl ::protobuf::Message for HermesMessage {
             os.write_tag(3, ::protobuf::wire_format::WireTypeLengthDelimited)?;
             os.write_raw_varint32(v.get_cached_size())?;
             v.write_to_with_cached_sizes(os)?;
+        }
+        if let Some(v) = self.sender_id {
+            os.write_uint32(4, v)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -977,6 +1013,11 @@ impl ::protobuf::Message for HermesMessage {
                 |m: &HermesMessage| { &m.ack_or_val },
                 |m: &mut HermesMessage| { &mut m.ack_or_val },
             ));
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "sender_id",
+                |m: &HermesMessage| { &m.sender_id },
+                |m: &mut HermesMessage| { &mut m.sender_id },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<HermesMessage>(
                 "HermesMessage",
                 fields,
@@ -996,6 +1037,7 @@ impl ::protobuf::Clear for HermesMessage {
         self.field_type = ::std::option::Option::None;
         self.inv.clear();
         self.ack_or_val.clear();
+        self.sender_id = ::std::option::Option::None;
         self.unknown_fields.clear();
     }
 }
@@ -1071,12 +1113,12 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     Val\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\x12\x1a\n\x02ts\x18\
     \x03\x20\x02(\x0b2\n.TimestampR\x02ts\"I\n\x03Inv\x12\x10\n\x03key\x18\
     \x01\x20\x02(\x0cR\x03key\x12\x1a\n\x02ts\x18\x03\x20\x02(\x0b2\n.Timest\
-    ampR\x02ts\x12\x14\n\x05value\x18\x05\x20\x02(\x0cR\x05value\"\xa8\x01\n\
+    ampR\x02ts\x12\x14\n\x05value\x18\x05\x20\x02(\x0cR\x05value\"\xc5\x01\n\
     \rHermesMessage\x12-\n\x04type\x18\x01\x20\x02(\x0e2\x19.HermesMessage.H\
     ermesTypeR\x04type\x12\x16\n\x03inv\x18\x02\x20\x01(\x0b2\x04.InvR\x03in\
-    v\x12'\n\nack_or_val\x18\x03\x20\x01(\x0b2\t.AckOrValR\x08ackOrVal\"'\n\
-    \nHermesType\x12\x07\n\x03Inv\x10\0\x12\x07\n\x03Val\x10\x01\x12\x07\n\
-    \x03Ack\x10\x02\
+    v\x12'\n\nack_or_val\x18\x03\x20\x01(\x0b2\t.AckOrValR\x08ackOrVal\x12\
+    \x1b\n\tsender_id\x18\x04\x20\x02(\rR\x08senderId\"'\n\nHermesType\x12\
+    \x07\n\x03Inv\x10\0\x12\x07\n\x03Val\x10\x01\x12\x07\n\x03Ack\x10\x02\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

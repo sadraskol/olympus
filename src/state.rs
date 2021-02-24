@@ -33,13 +33,6 @@ impl State {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MachineValue {
-    value: Value,
-    state: State,
-    pub timestamp: Timestamp,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReadResult {
     Pending,
     Value(Value),
@@ -51,7 +44,22 @@ pub enum WriteResult {
     Accepted,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MachineValue {
+    value: Value,
+    state: State,
+    pub timestamp: Timestamp,
+}
+
 impl MachineValue {
+    pub fn invalid_value(ts: Timestamp, value: Value) -> Self {
+        MachineValue {
+            value,
+            state: State::Inv,
+            timestamp: ts
+        }
+    }
+
     // TODO replay the write if invalidated since longer then the mlt (timeout)
     pub fn read(&self) -> ReadResult {
         if self.state == State::Valid {
@@ -61,17 +69,18 @@ impl MachineValue {
         }
     }
 
-    pub fn write(&mut self, client: ClientId, value: Value) -> WriteResult {
+    pub fn write(&mut self, client: ClientId, value: Value, ts: Timestamp) -> WriteResult {
         if self.state == State::Valid {
             self.state = State::Write(client, HashSet::new());
             self.value = value;
+            self.timestamp = ts;
             WriteResult::Accepted
         } else {
             WriteResult::Rejected
         }
     }
 
-    pub fn write_default(client: ClientId, value: Value, ts: Timestamp) -> Self {
+    pub fn write_value(client: ClientId, value: Value, ts: Timestamp) -> Self {
         MachineValue {
             value,
             state: State::Write(client, HashSet::new()),
@@ -190,14 +199,18 @@ mod test_coordinator_writes {
             timestamp: Timestamp::new(0, 0),
         };
 
-        let res = state.write(ClientId(1), Value(vec![3, 2, 1]));
+        let res = state.write(
+            ClientId(1),
+            Value(vec![3, 2, 1]),
+            Timestamp::new(100, 100)
+        );
         assert_eq!(res, WriteResult::Accepted);
         assert_eq!(
             state,
             MachineValue {
                 value: Value(vec![3, 2, 1]),
                 state: State::Write(ClientId(1), HashSet::new()),
-                timestamp: Timestamp::new(0, 0),
+                timestamp: Timestamp::new(100, 100),
             }
         );
     }
@@ -252,7 +265,11 @@ mod test_coordinator_writes {
         };
         let expected = state.clone();
 
-        let res = state.write(ClientId(1), Value(vec![3, 2, 1]));
+        let res = state.write(
+            ClientId(1),
+            Value(vec![3, 2, 1]),
+            Timestamp::new(100, 100)
+        );
         assert_eq!(res, WriteResult::Rejected);
         assert_eq!(state, expected);
     }
@@ -266,7 +283,11 @@ mod test_coordinator_writes {
         };
         let expected = state.clone();
 
-        let res = state.write(ClientId(1), Value(vec![3, 2, 1]));
+        let res = state.write(
+            ClientId(1),
+            Value(vec![3, 2, 1]),
+            Timestamp::new(100, 100)
+        );
         assert_eq!(res, WriteResult::Rejected);
         assert_eq!(state, expected);
     }
