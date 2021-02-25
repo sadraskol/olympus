@@ -50,7 +50,7 @@ async fn main() -> std::io::Result<()> {
     }
 }
 
-async fn read(client: &str, key: &str)-> std::io::Result<()> {
+async fn read(client: &str, key: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(client).await?;
 
     let mut read = queries::Read::new();
@@ -75,7 +75,7 @@ async fn read(client: &str, key: &str)-> std::io::Result<()> {
     Ok(())
 }
 
-async fn write(client: &str, key: &str, value: &str)-> std::io::Result<()> {
+async fn write(client: &str, key: &str, value: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(client).await?;
 
     let mut write = queries::Write::new();

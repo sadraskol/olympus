@@ -1,11 +1,28 @@
 use crate::hermes::ClientId;
 use std::collections::HashSet;
+use std::fmt::{Debug, Error, Formatter};
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Key(pub Vec<u8>);
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl Debug for Key {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.debug_tuple("Key")
+            .field(&std::str::from_utf8(&self.0).unwrap())
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct Value(pub Vec<u8>);
+
+impl Debug for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.debug_tuple("Value")
+            .field(&std::str::from_utf8(&self.0).unwrap())
+            .finish()
+    }
+}
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Member(pub i32);
@@ -56,7 +73,7 @@ impl MachineValue {
         MachineValue {
             value,
             state: State::Inv,
-            timestamp: ts
+            timestamp: ts,
         }
     }
 
@@ -142,6 +159,10 @@ impl Timestamp {
     pub fn increment(&mut self) {
         self.version += 1;
     }
+
+    pub fn increment_to(&mut self, rhs: &Timestamp) {
+        self.version = rhs.version;
+    }
 }
 
 #[cfg(test)]
@@ -201,11 +222,7 @@ mod test_coordinator_writes {
             timestamp: Timestamp::new(0, 0),
         };
 
-        let res = state.write(
-            ClientId(1),
-            Value(vec![3, 2, 1]),
-            Timestamp::new(100, 100)
-        );
+        let res = state.write(ClientId(1), Value(vec![3, 2, 1]), Timestamp::new(100, 100));
         assert_eq!(res, WriteResult::Accepted);
         assert_eq!(
             state,
@@ -267,11 +284,7 @@ mod test_coordinator_writes {
         };
         let expected = state.clone();
 
-        let res = state.write(
-            ClientId(1),
-            Value(vec![3, 2, 1]),
-            Timestamp::new(100, 100)
-        );
+        let res = state.write(ClientId(1), Value(vec![3, 2, 1]), Timestamp::new(100, 100));
         assert_eq!(res, WriteResult::Rejected);
         assert_eq!(state, expected);
     }
@@ -285,11 +298,7 @@ mod test_coordinator_writes {
         };
         let expected = state.clone();
 
-        let res = state.write(
-            ClientId(1),
-            Value(vec![3, 2, 1]),
-            Timestamp::new(100, 100)
-        );
+        let res = state.write(ClientId(1), Value(vec![3, 2, 1]), Timestamp::new(100, 100));
         assert_eq!(res, WriteResult::Rejected);
         assert_eq!(state, expected);
     }

@@ -8,15 +8,15 @@ use protobuf::Message;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+use olympus::config::{cfg, Config};
 use olympus::proto::hermes::HermesMessage;
 use olympus::proto::queries::{Answers, Commands};
-use olympus::config::{cfg, Config};
 
 use crate::hermes::{ClientId, HMessage, Hermes};
 use crate::state::Member;
-use tokio::task::JoinHandle;
 use log4rs::append::file::FileAppender;
-use log4rs::config::{Root, Appender};
+use log4rs::config::{Appender, Root};
+use tokio::task::JoinHandle;
 
 mod hermes;
 mod state;
@@ -66,7 +66,9 @@ impl Membership {
     }
 
     fn members(&self) -> HashSet<Member> {
-        self.list.lock().unwrap()
+        self.list
+            .lock()
+            .unwrap()
             .iter()
             .map(|(m, _)| m.clone())
             .collect()
@@ -241,7 +243,8 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
                 msg.set_sender_id(state.cfg.id as u32);
                 tokio::spawn(async move {
                     send_sync_message(&socket, msg).await.unwrap();
-                }).await?;
+                })
+                .await?;
             }
         }
     }

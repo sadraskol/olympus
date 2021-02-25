@@ -5,6 +5,7 @@ use tokio::net::TcpStream;
 
 use olympus::proto::queries;
 use olympus::proto::queries::Answers;
+use std::collections::HashSet;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -15,11 +16,19 @@ async fn main() -> std::io::Result<()> {
     loop {
         let mut rng = rand::thread_rng();
         let key = rng.gen_range(key_range.clone());
-        let client = clients[rng.gen_range(0..=2)];
         if rand::random() {
-            println!("loop reading {} from {}", key, client);
-            read(client, &key.to_string()).await?;
+            println!("loop reading {}", key);
+            let mut set = HashSet::new();
+            for c in clients.clone().iter() {
+                let answers = read(c, &key.to_string()).await?.clone();
+                let value = answers.get_read().get_value();
+                set.insert(value.to_vec());
+            }
+            if set.len() != 1 {
+                return Ok(());
+            }
         } else {
+            let client = clients[rng.gen_range(0..=2)];
             println!("loop writing {} -> {} from {}", key, value_gen, client);
             write(client, &key.to_string(), &value_gen.to_string()).await?;
             value_gen += 1;
@@ -27,7 +36,7 @@ async fn main() -> std::io::Result<()> {
     }
 }
 
-async fn read(client: &str, key: &str) -> std::io::Result<()> {
+async fn read(client: &str, key: &str) -> std::io::Result<Answers> {
     let mut stream = TcpStream::connect(client).await?;
 
     let mut read = queries::Read::new();
@@ -49,7 +58,7 @@ async fn read(client: &str, key: &str) -> std::io::Result<()> {
     let result = Answers::parse_from_bytes(&buf).unwrap();
 
     println!("{:?}", result);
-    Ok(())
+    Ok(result)
 }
 
 async fn write(client: &str, key: &str, value: &str) -> std::io::Result<()> {
