@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use log::info;
+use log::{debug, info};
 
 use olympus::proto;
 use olympus::proto::hermes::{AckOrVal, HermesMessage, HermesMessage_HermesType};
@@ -119,7 +119,7 @@ impl Hermes {
     }
 
     pub fn run(&mut self, message: HMessage) -> Vec<HMessage> {
-        info!("{:?}", self);
+        debug!("{:?}", self);
         let mut output = vec![];
         match message {
             HMessage::Client(client_id, command) => match command.get_field_type() {
@@ -139,10 +139,7 @@ impl Hermes {
                                 }
                             }
                             ReadResult::Value(value) => {
-                                output.push(HMessage::Answer(
-                                    client_id,
-                                    read_answer_of(&value),
-                                ));
+                                output.push(HMessage::Answer(client_id, read_answer_of(&value)));
                             }
                         }
                     } else {
@@ -175,11 +172,7 @@ impl Hermes {
                     } else {
                         self.keys.insert(
                             key.clone(),
-                            MachineValue::write_value(
-                                client_id,
-                                value.clone(),
-                                self.ts.clone(),
-                            ),
+                            MachineValue::write_value(client_id, value.clone(), self.ts.clone()),
                         );
                         for member in &self.members {
                             output.push(HMessage::Sync(
@@ -199,7 +192,7 @@ impl Hermes {
                         msg.get_inv().get_ts().get_cid(),
                     );
 
-                    self.update_ts(&ts);
+                    self.ts.increment_to(&ts);
 
                     info!(
                         "invalidate key: {:?}, value: {:?}, ts: {:?}",
@@ -264,10 +257,6 @@ impl Hermes {
 
     pub fn update_members(&mut self, members: HashSet<Member>) {
         self.members = members;
-    }
-
-    pub fn update_ts(&mut self, ts: &Timestamp) {
-        self.ts.increment_to(ts);
     }
 }
 
