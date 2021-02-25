@@ -1,3 +1,4 @@
+use log::{info, LevelFilter};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicU32;
@@ -14,6 +15,8 @@ use olympus::config::{cfg, Config};
 use crate::hermes::{ClientId, HMessage, Hermes};
 use crate::state::Member;
 use tokio::task::JoinHandle;
+use log4rs::append::file::FileAppender;
+use log4rs::config::{Root, Appender};
 
 mod hermes;
 mod state;
@@ -109,6 +112,17 @@ impl SharedState {
 async fn main() -> std::io::Result<()> {
     let state = SharedState::new();
 
+    let file = FileAppender::builder()
+        .build(format!("replica-{}.log", state.cfg.id))
+        .unwrap();
+
+    let config = log4rs::Config::builder()
+        .appender(Appender::builder().build("file", Box::new(file)))
+        .build(Root::builder().appender("file").build(LevelFilter::Info))
+        .unwrap();
+
+    log4rs::init_config(config).unwrap();
+
     let client_handle = client_listener(state.clone()).await;
     let hermes_handle = hermes_listener(state).await;
 
@@ -120,7 +134,7 @@ async fn main() -> std::io::Result<()> {
 
 async fn hermes_listener(shared_state: SharedState) -> JoinHandle<()> {
     tokio::spawn(async move {
-        println!("listen to peers requests");
+        info!("listen to peers requests");
 
         let listener = TcpListener::bind(shared_state.cfg.hermes_addr())
             .await
@@ -147,8 +161,7 @@ async fn peer_socket_handler(state: SharedState, mut stream: TcpStream) -> std::
         let peer_id = Member(message.get_sender_id() as i32);
 
         let mut guard = state.hermes.lock().unwrap();
-        guard.receive(HMessage::Sync(peer_id, message));
-        guard.run()
+        guard.run(HMessage::Sync(peer_id, message))
     };
     for message in messages {
         match message {
@@ -177,7 +190,7 @@ async fn peer_socket_handler(state: SharedState, mut stream: TcpStream) -> std::
 
 async fn client_listener(shared_state: SharedState) -> JoinHandle<()> {
     tokio::spawn(async move {
-        println!("listen to client requests");
+        info!("listen to client requests");
 
         let listener = TcpListener::bind(shared_state.cfg.client_addr())
             .await
@@ -211,8 +224,7 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
 
         let command = Commands::parse_from_bytes(&buf).unwrap();
         let mut guard = state.hermes.lock().unwrap();
-        guard.receive(HMessage::Client(client_id, command));
-        guard.run()
+        guard.run(HMessage::Client(client_id, command))
     };
 
     let mut maybe_response = None;
@@ -259,7 +271,7 @@ async fn send_sync_message(
     peer_socket: &SocketAddr,
     message: HermesMessage,
 ) -> std::io::Result<()> {
-    println!("sending sync message {:?}", message);
+    info!("sending sync message {:?}", message);
 
     let mut stream = TcpStream::connect(peer_socket).await?;
     let vec = message.write_to_bytes()?;

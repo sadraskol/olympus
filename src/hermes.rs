@@ -1,11 +1,9 @@
+use log::info;
 use std::collections::{HashMap, HashSet};
 
 use olympus::proto;
 use olympus::proto::hermes::{AckOrVal, HermesMessage, HermesMessage_HermesType};
-use olympus::proto::queries::{
-    Answers, Answers_AnswerType, Commands, Commands_CommandType, ReadAnswer,
-    WriteAnswer,
-};
+use olympus::proto::queries::{Answers, Answers_AnswerType, Commands, Commands_CommandType, ReadAnswer, WriteAnswer, WriteAnswer_WriteType};
 
 use crate::state::{Key, MachineValue, Member, ReadResult, Timestamp, Value, WriteResult};
 
@@ -31,7 +29,17 @@ fn read_answer_of(value: &Value) -> Answers {
 fn write_answer_ok() -> Answers {
     let mut answer = Answers::new();
     answer.set_field_type(Answers_AnswerType::Write);
-    let write = WriteAnswer::new();
+    let mut write = WriteAnswer::new();
+    write.set_code(WriteAnswer_WriteType::Ok);
+    answer.set_write(write);
+    answer
+}
+
+fn write_answer_refused() -> Answers {
+    let mut answer = Answers::new();
+    answer.set_field_type(Answers_AnswerType::Write);
+    let mut write = WriteAnswer::new();
+    write.set_code(WriteAnswer_WriteType::Refused);
     answer.set_write(write);
     answer
 }
@@ -106,140 +114,141 @@ impl Hermes {
         }
     }
 
-    pub fn run(&mut self) -> Vec<HMessage> {
-        println!("{:?}", self);
+    pub fn run(&mut self, message: HMessage) -> Vec<HMessage> {
+        info!("{:?}", self);
         let mut output = vec![];
-        while let Some(ref msg) = self.inbox.pop() {
-            match msg {
-                HMessage::Client(client_id, command) => {
-                    match command.get_field_type() {
-                        Commands_CommandType::Read => {
-                            let key = Key(command.get_read().get_key().to_vec());
+        match message {
+            HMessage::Client(client_id, command) => {
+                match command.get_field_type() {
+                    Commands_CommandType::Read => {
+                        let key = Key(command.get_read().get_key().to_vec());
 
-                            println!("reading key: {:?}", key);
+                        info!("reading key: {:?}", key);
 
-                            if let Some(value) = self.keys.get(&key) {
-                                match value.read() {
-                                    ReadResult::Pending => {
-                                        self.pending_reads.push(msg.clone());
-                                    }
-                                    ReadResult::Value(value) => {
-                                        output.push(HMessage::Answer(
-                                            client_id.clone(),
-                                            read_answer_of(&value),
-                                        ));
-                                    }
+                        if let Some(value) = self.keys.get(&key) {
+                            match value.read() {
+                                ReadResult::Pending => {
+                                    self.pending_reads.push(HMessage::Client(client_id, command));
                                 }
-                            } else {
-                                output.push(HMessage::Answer(
-                                    client_id.clone(),
-                                    nil_read_answer(),
-                                ));
-                            }
-                        }
-                        Commands_CommandType::Write => {
-                            self.ts.increment();
-                            let key = Key(command.get_write().get_key().to_vec());
-                            let value = Value(command.get_write().get_value().to_vec());
-
-                            println!("writing key: {:?}, value: {:?}, ts: {:?}", key, value, self.ts);
-
-                            if let Some(machine) = self.keys.get_mut(&key) {
-                                let state = machine.write(
-                                    client_id.clone(),
-                                    value.clone(),
-                                    self.ts.clone()
-                                );
-                                if state == WriteResult::Accepted {
-                                    for member in &self.members {
-                                        output.push(HMessage::Sync(
-                                            member.clone(),
-                                            inv_msg(&key, &self.ts, &value),
-                                        ))
-                                    }
-                                }
-                            } else {
-                                self.keys.insert(
-                                    key.clone(),
-                                    MachineValue::write_value(
+                                ReadResult::Value(value) => {
+                                    output.push(HMessage::Answer(
                                         client_id.clone(),
-                                        value.clone(),
-                                        self.ts.clone(),
-                                    ),
-                                );
+                                        read_answer_of(&value),
+                                    ));
+                                }
+                            }
+                        } else {
+                            output.push(HMessage::Answer(
+                                client_id.clone(),
+                                nil_read_answer(),
+                            ));
+                        }
+                    }
+                    Commands_CommandType::Write => {
+                        self.ts.increment();
+                        let key = Key(command.get_write().get_key().to_vec());
+                        let value = Value(command.get_write().get_value().to_vec());
+
+                        info!("writing key: {:?}, value: {:?}, ts: {:?}", key, value, self.ts);
+
+                        if let Some(machine) = self.keys.get_mut(&key) {
+                            let state = machine.write(
+                                client_id.clone(),
+                                value.clone(),
+                                self.ts.clone()
+                            );
+                            if state == WriteResult::Accepted {
                                 for member in &self.members {
                                     output.push(HMessage::Sync(
                                         member.clone(),
                                         inv_msg(&key, &self.ts, &value),
                                     ))
                                 }
+                            } else {
+                                output.push(
+                                    HMessage::Answer(
+                                        client_id,
+                                        write_answer_refused()
+                                    )
+                                )
                             }
-                        }
-                    }
-                }
-                HMessage::Sync(member, msg) => match msg.get_field_type() {
-                    HermesMessage_HermesType::Inv => {
-                        let key = Key(msg.get_inv().get_key().to_vec());
-                        let value = Value(msg.get_inv().get_value().to_vec());
-                        let ts = Timestamp::new(
-                            msg.get_inv().get_ts().get_version(),
-                            msg.get_inv().get_ts().get_cid(),
-                        );
-
-                        println!("invalidate key: {:?}, value: {:?}, ts: {:?}", key, value, ts);
-
-                        if let Some(machine) = self.keys.get_mut(&key) {
-                            machine.invalid(ts.clone(), value);
                         } else {
-                            self.keys.insert(key.clone(), MachineValue::invalid_value(ts.clone(), value));
-                        }
-                        output.push(HMessage::Sync(
-                            member.clone(),
-                            ack_msg(&key, &ts),
-                        ));
-                    }
-                    HermesMessage_HermesType::Ack => {
-                        let key = Key(msg.get_ack_or_val().get_key().to_vec());
-
-                        println!("ack key: {:?}", key);
-
-                        if let Some(machine) = self.keys.get_mut(&key) {
-                            machine.ack(member.clone());
-                            if let Some(client_id) = machine.ack_write_against(&self.members) {
-                                output.push(HMessage::Answer(client_id, write_answer_ok()));
-                                for member in &self.members {
-                                    output.push(HMessage::Sync(
-                                        member.clone(),
-                                        val_msg(&key, &machine.timestamp),
-                                    ));
-                                }
+                            self.keys.insert(
+                                key.clone(),
+                                MachineValue::write_value(
+                                    client_id.clone(),
+                                    value.clone(),
+                                    self.ts.clone(),
+                                ),
+                            );
+                            for member in &self.members {
+                                output.push(HMessage::Sync(
+                                    member.clone(),
+                                    inv_msg(&key, &self.ts, &value),
+                                ))
                             }
                         }
                     }
-                    HermesMessage_HermesType::Val => {
-                        let key = Key(msg.get_ack_or_val().get_key().to_vec());
-                        let ts = Timestamp::new(
-                            msg.get_ack_or_val().get_ts().get_version(),
-                            msg.get_ack_or_val().get_ts().get_cid(),
-                        );
+                }
+            }
+            HMessage::Sync(member, msg) => match msg.get_field_type() {
+                HermesMessage_HermesType::Inv => {
+                    let key = Key(msg.get_inv().get_key().to_vec());
+                    let value = Value(msg.get_inv().get_value().to_vec());
+                    let ts = Timestamp::new(
+                        msg.get_inv().get_ts().get_version(),
+                        msg.get_inv().get_ts().get_cid(),
+                    );
 
-                        println!("validate key: {:?}, ts: {:?}", key, ts);
+                    info!("invalidate key: {:?}, value: {:?}, ts: {:?}", key, value, ts);
 
-                        if let Some(machine) = self.keys.get_mut(&key) {
-                            machine.validate(ts.clone());
+                    if let Some(machine) = self.keys.get_mut(&key) {
+                        machine.invalid(ts.clone(), value);
+                    } else {
+                        self.keys.insert(key.clone(), MachineValue::invalid_value(ts.clone(), value));
+                    }
+                    output.push(HMessage::Sync(
+                        member.clone(),
+                        ack_msg(&key, &ts),
+                    ));
+                }
+                HermesMessage_HermesType::Ack => {
+                    let key = Key(msg.get_ack_or_val().get_key().to_vec());
+
+                    info!("ack key: {:?}", key);
+
+                    if let Some(machine) = self.keys.get_mut(&key) {
+                        machine.ack(member.clone());
+                        if let Some(client_id) = machine.ack_write_against(&self.members) {
+                            output.push(HMessage::Answer(client_id, write_answer_ok()));
+                            for member in &self.members {
+                                output.push(HMessage::Sync(
+                                    member.clone(),
+                                    val_msg(&key, &machine.timestamp),
+                                ));
+                            }
                         }
                     }
-                },
-                HMessage::Answer(c, d) => {
-                    panic!("answer {:?} for {:?} in inbox!", d, c);
                 }
+                HermesMessage_HermesType::Val => {
+                    let key = Key(msg.get_ack_or_val().get_key().to_vec());
+                    let ts = Timestamp::new(
+                        msg.get_ack_or_val().get_ts().get_version(),
+                        msg.get_ack_or_val().get_ts().get_cid(),
+                    );
+
+                    info!("validate key: {:?}, ts: {:?}", key, ts);
+
+                    if let Some(machine) = self.keys.get_mut(&key) {
+                        machine.validate(ts.clone());
+                    }
+                }
+            },
+            HMessage::Answer(c, d) => {
+                panic!("answer {:?} for {:?} in inbox!", d, c);
             }
         }
         output
-    }
-
-    pub fn receive(&mut self, message: HMessage) {
-        self.inbox.push(message);
     }
 
     pub fn update_members(&mut self, members: HashSet<Member>) {
@@ -255,10 +264,7 @@ mod hermes_test {
 
     use olympus::proto::queries::{Commands, Commands_CommandType, Read, Write};
 
-    use crate::hermes::{
-        ack_msg, ClientId, Hermes, HMessage, inv_msg, read_answer_of,
-        val_msg, write_answer_ok
-    };
+    use crate::hermes::{ack_msg, ClientId, Hermes, HMessage, inv_msg, read_answer_of, val_msg, write_answer_ok, write_answer_refused};
     use crate::state::{Key, Member, Timestamp, Value};
 
     fn write_command(key: &Key, value: &Value) -> Commands {
@@ -308,9 +314,8 @@ mod hermes_test {
         let key = Key(vec![35, 36, 37]);
         let value = Value(vec![1, 2, 3]);
 
-        hermes.receive(HMessage::Client(ClientId(1), write_command(&key, &value)));
         let expected_ts = Timestamp::new(1, 1);
-        let mut vec2 = hermes.run();
+        let mut vec2 = hermes.run(HMessage::Client(ClientId(1), write_command(&key, &value)));
         vec2.sort_by(msg_by_member);
         assert_eq!(
             vec2,
@@ -319,9 +324,8 @@ mod hermes_test {
                 HMessage::Sync(Member(3), inv_msg(&key, &expected_ts, &value))
             ]
         );
-        hermes.receive(HMessage::Sync(Member(2), ack_msg(&key, &expected_ts)));
-        hermes.receive(HMessage::Sync(Member(3), ack_msg(&key, &expected_ts)));
-        let mut vec1 = hermes.run();
+        hermes.run(HMessage::Sync(Member(2), ack_msg(&key, &expected_ts)));
+        let mut vec1 = hermes.run(HMessage::Sync(Member(3), ack_msg(&key, &expected_ts)));
         vec1.sort_by(msg_by_member);
         assert_eq!(
             vec1,
@@ -331,10 +335,32 @@ mod hermes_test {
                 HMessage::Sync(Member(3), val_msg(&key, &expected_ts))
             ]
         );
-        hermes.receive(HMessage::Client(ClientId(4), read_command(&key)));
         assert_eq!(
-            hermes.run(),
+            hermes.run(HMessage::Client(ClientId(4), read_command(&key))),
             vec![HMessage::Answer(ClientId(4), read_answer_of(&value))]
+        );
+    }
+
+    #[test]
+    fn when_value_is_invalidated_writes_fail() {
+        let mut hermes = Hermes::new(1);
+        hermes.update_members(HashSet::from_iter(vec![Member(2), Member(3)]));
+
+        let key = Key(vec![35, 36, 37]);
+        let value = Value(vec![1, 2, 3]);
+        let timestamp = Timestamp::new(2, 2);
+
+        assert_eq!(
+            hermes.run(HMessage::Sync(Member(2), inv_msg(&key, &timestamp, &value))),
+            vec![
+                HMessage::Sync(Member(2), ack_msg(&key, &timestamp)),
+            ]
+        );
+        assert_eq!(
+            hermes.run(HMessage::Client(ClientId(1), write_command(&key, &value))),
+            vec![
+                HMessage::Answer(ClientId(1), write_answer_refused())
+            ]
         );
     }
 }

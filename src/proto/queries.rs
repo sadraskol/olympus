@@ -954,6 +954,8 @@ impl ::protobuf::reflect::ProtobufValue for ReadAnswer {
 
 #[derive(PartialEq,Clone,Default)]
 pub struct WriteAnswer {
+    // message fields
+    code: ::std::option::Option<WriteAnswer_WriteType>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -969,10 +971,32 @@ impl WriteAnswer {
     pub fn new() -> WriteAnswer {
         ::std::default::Default::default()
     }
+
+    // required .WriteAnswer.WriteType code = 1;
+
+
+    pub fn get_code(&self) -> WriteAnswer_WriteType {
+        self.code.unwrap_or(WriteAnswer_WriteType::Ok)
+    }
+    pub fn clear_code(&mut self) {
+        self.code = ::std::option::Option::None;
+    }
+
+    pub fn has_code(&self) -> bool {
+        self.code.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_code(&mut self, v: WriteAnswer_WriteType) {
+        self.code = ::std::option::Option::Some(v);
+    }
 }
 
 impl ::protobuf::Message for WriteAnswer {
     fn is_initialized(&self) -> bool {
+        if self.code.is_none() {
+            return false;
+        }
         true
     }
 
@@ -980,6 +1004,9 @@ impl ::protobuf::Message for WriteAnswer {
         while !is.eof()? {
             let (field_number, wire_type) = is.read_tag_unpack()?;
             match field_number {
+                1 => {
+                    ::protobuf::rt::read_proto2_enum_with_unknown_fields_into(wire_type, is, &mut self.code, 1, &mut self.unknown_fields)?
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -992,12 +1019,18 @@ impl ::protobuf::Message for WriteAnswer {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
+        if let Some(v) = self.code {
+            my_size += ::protobuf::rt::enum_size(1, v);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if let Some(v) = self.code {
+            os.write_enum(1, ::protobuf::ProtobufEnum::value(&v))?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -1035,7 +1068,12 @@ impl ::protobuf::Message for WriteAnswer {
     fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
         static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
         descriptor.get(|| {
-            let fields = ::std::vec::Vec::new();
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeEnum<WriteAnswer_WriteType>>(
+                "code",
+                |m: &WriteAnswer| { &m.code },
+                |m: &mut WriteAnswer| { &mut m.code },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<WriteAnswer>(
                 "WriteAnswer",
                 fields,
@@ -1052,6 +1090,7 @@ impl ::protobuf::Message for WriteAnswer {
 
 impl ::protobuf::Clear for WriteAnswer {
     fn clear(&mut self) {
+        self.code = ::std::option::Option::None;
         self.unknown_fields.clear();
     }
 }
@@ -1065,6 +1104,56 @@ impl ::std::fmt::Debug for WriteAnswer {
 impl ::protobuf::reflect::ProtobufValue for WriteAnswer {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(Clone,PartialEq,Eq,Debug,Hash)]
+pub enum WriteAnswer_WriteType {
+    Ok = 0,
+    Refused = 1,
+}
+
+impl ::protobuf::ProtobufEnum for WriteAnswer_WriteType {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<WriteAnswer_WriteType> {
+        match value {
+            0 => ::std::option::Option::Some(WriteAnswer_WriteType::Ok),
+            1 => ::std::option::Option::Some(WriteAnswer_WriteType::Refused),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [WriteAnswer_WriteType] = &[
+            WriteAnswer_WriteType::Ok,
+            WriteAnswer_WriteType::Refused,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            ::protobuf::reflect::EnumDescriptor::new_pb_name::<WriteAnswer_WriteType>("WriteAnswer.WriteType", file_descriptor_proto())
+        })
+    }
+}
+
+impl ::std::marker::Copy for WriteAnswer_WriteType {
+}
+
+impl ::std::default::Default for WriteAnswer_WriteType {
+    fn default() -> Self {
+        WriteAnswer_WriteType::Ok
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for WriteAnswer_WriteType {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Enum(::protobuf::ProtobufEnum::descriptor(self))
     }
 }
 
@@ -1396,7 +1485,9 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     write\x18\x03\x20\x01(\x0b2\x06.WriteR\x05write\"\"\n\x0bCommandType\x12\
     \x08\n\x04Read\x10\0\x12\t\n\x05Write\x10\x01\"9\n\nReadAnswer\x12\x15\n\
     \x06is_nil\x18\x01\x20\x02(\x08R\x05isNil\x12\x14\n\x05value\x18\x02\x20\
-    \x01(\x0cR\x05value\"\r\n\x0bWriteAnswer\"\x9a\x01\n\x07Answers\x12'\n\
+    \x01(\x0cR\x05value\"[\n\x0bWriteAnswer\x12*\n\x04code\x18\x01\x20\x02(\
+    \x0e2\x16.WriteAnswer.WriteTypeR\x04code\"\x20\n\tWriteType\x12\x06\n\
+    \x02Ok\x10\0\x12\x0b\n\x07Refused\x10\x01\"\x9a\x01\n\x07Answers\x12'\n\
     \x04type\x18\x01\x20\x02(\x0e2\x13.Answers.AnswerTypeR\x04type\x12\x1f\n\
     \x04read\x18\x02\x20\x01(\x0b2\x0b.ReadAnswerR\x04read\x12\"\n\x05write\
     \x18\x03\x20\x01(\x0b2\x0c.WriteAnswerR\x05write\"!\n\nAnswerType\x12\
