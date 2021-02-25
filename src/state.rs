@@ -110,11 +110,13 @@ impl MachineValue {
         }
     }
 
-    pub fn validate(&mut self, ts: Timestamp) {
+    pub fn validate(&mut self, ts: Timestamp) -> ReadResult {
         if self.state == State::Inv && self.timestamp == ts {
             self.state = State::Valid;
             self.timestamp = ts;
         }
+
+        self.read()
     }
 
     pub fn invalid(&mut self, ts: Timestamp, value: Value) {

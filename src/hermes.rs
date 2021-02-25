@@ -1,5 +1,6 @@
-use log::info;
 use std::collections::{HashMap, HashSet};
+
+use log::info;
 
 use olympus::proto;
 use olympus::proto::hermes::{AckOrVal, HermesMessage, HermesMessage_HermesType};
@@ -100,7 +101,7 @@ pub struct Hermes {
     ts: Timestamp,
     members: HashSet<Member>,
     inbox: Vec<HMessage>,
-    pending_reads: Vec<HMessage>,
+    pending_reads: HashMap<Key, Vec<HMessage>>,
 }
 
 impl Hermes {
@@ -110,7 +111,7 @@ impl Hermes {
             ts: Timestamp::new(0, c_id),
             members: HashSet::new(),
             inbox: vec![],
-            pending_reads: vec![],
+            pending_reads: HashMap::new(),
         }
     }
 
@@ -128,7 +129,13 @@ impl Hermes {
                         if let Some(value) = self.keys.get(&key) {
                             match value.read() {
                                 ReadResult::Pending => {
-                                    self.pending_reads.push(HMessage::Client(client_id, command));
+                                    if let Some(vec) = self.pending_reads.get_mut(&key) {
+                                        vec.push(HMessage::Client(client_id, command));
+                                    } else {
+                                        self.pending_reads.insert(key, vec![
+                                            HMessage::Client(client_id, command)
+                                        ]);
+                                    }
                                 }
                                 ReadResult::Value(value) => {
                                     output.push(HMessage::Answer(
@@ -155,7 +162,7 @@ impl Hermes {
                             let state = machine.write(
                                 client_id.clone(),
                                 value.clone(),
-                                self.ts.clone()
+                                self.ts.clone(),
                             );
                             if state == WriteResult::Accepted {
                                 for member in &self.members {
@@ -168,7 +175,7 @@ impl Hermes {
                                 output.push(
                                     HMessage::Answer(
                                         client_id,
-                                        write_answer_refused()
+                                        write_answer_refused(),
                                     )
                                 )
                             }
@@ -240,7 +247,13 @@ impl Hermes {
                     info!("validate key: {:?}, ts: {:?}", key, ts);
 
                     if let Some(machine) = self.keys.get_mut(&key) {
-                        machine.validate(ts.clone());
+                        if let ReadResult::Value(value) = machine.validate(ts.clone()) {
+                            for client_waiting in self.pending_reads.get(&key).unwrap_or(&vec![]) {
+                                if let HMessage::Client(client_id, _) = client_waiting {
+                                    output.push(HMessage::Answer(client_id.clone(), read_answer_of(&value)));
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -352,15 +365,33 @@ mod hermes_test {
 
         assert_eq!(
             hermes.run(HMessage::Sync(Member(2), inv_msg(&key, &timestamp, &value))),
-            vec![
-                HMessage::Sync(Member(2), ack_msg(&key, &timestamp)),
-            ]
+            vec![HMessage::Sync(Member(2), ack_msg(&key, &timestamp))]
         );
         assert_eq!(
             hermes.run(HMessage::Client(ClientId(1), write_command(&key, &value))),
-            vec![
-                HMessage::Answer(ClientId(1), write_answer_refused())
-            ]
+            vec![HMessage::Answer(ClientId(1), write_answer_refused())]
+        );
+    }
+
+    #[test]
+    fn when_value_is_validated_reads_are_triggered() {
+        let mut hermes = Hermes::new(1);
+        hermes.update_members(HashSet::from_iter(vec![Member(2), Member(3)]));
+
+        let key = Key(vec![35, 36, 37]);
+        let value = Value(vec![1, 2, 3]);
+        let timestamp = Timestamp::new(2, 2);
+        assert_eq!(
+            hermes.run(HMessage::Sync(Member(3), inv_msg(&key, &timestamp, &value))),
+            vec![HMessage::Sync(Member(3), ack_msg(&key, &timestamp))]
+        );
+        assert_eq!(
+            hermes.run(HMessage::Client(ClientId(1), read_command(&key))),
+            vec![]
+        );
+        assert_eq!(
+            hermes.run(HMessage::Sync(Member(3), val_msg(&key, &timestamp))),
+            vec![HMessage::Answer(ClientId(1), read_answer_of(&value))]
         );
     }
 }
