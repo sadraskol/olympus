@@ -19,8 +19,8 @@ async fn main() -> std::io::Result<()> {
         let mut buf = String::new();
         stdin.read_line(&mut buf)?;
 
-        let split: Vec<&str> = buf.trim().split(" ").collect();
-        if split.len() < 1 {
+        let split: Vec<&str> = buf.trim().split(' ').collect();
+        if split.is_empty() {
             println!("malformed input");
         } else {
             let client_turn = client.clone();

@@ -140,13 +140,13 @@ impl Hermes {
                             }
                             ReadResult::Value(value) => {
                                 output.push(HMessage::Answer(
-                                    client_id.clone(),
+                                    client_id,
                                     read_answer_of(&value),
                                 ));
                             }
                         }
                     } else {
-                        output.push(HMessage::Answer(client_id.clone(), nil_read_answer()));
+                        output.push(HMessage::Answer(client_id, nil_read_answer()));
                     }
                 }
                 Commands_CommandType::Write => {
@@ -176,7 +176,7 @@ impl Hermes {
                         self.keys.insert(
                             key.clone(),
                             MachineValue::write_value(
-                                client_id.clone(),
+                                client_id,
                                 value.clone(),
                                 self.ts.clone(),
                             ),
@@ -212,7 +212,7 @@ impl Hermes {
                         self.keys
                             .insert(key.clone(), MachineValue::invalid_value(ts.clone(), value));
                     }
-                    output.push(HMessage::Sync(member.clone(), ack_msg(&key, &ts)));
+                    output.push(HMessage::Sync(member, ack_msg(&key, &ts)));
                 }
                 HermesMessage_HermesType::Ack => {
                     let key = Key(msg.get_ack_or_val().get_key().to_vec());
@@ -220,7 +220,7 @@ impl Hermes {
                     info!("ack key: {:?}", key);
 
                     if let Some(machine) = self.keys.get_mut(&key) {
-                        machine.ack(member.clone());
+                        machine.ack(member);
                         if let Some(client_id) = machine.ack_write_against(&self.members) {
                             output.push(HMessage::Answer(client_id, write_answer_ok()));
                             for member in &self.members {
@@ -242,7 +242,7 @@ impl Hermes {
                     info!("validate key: {:?}, ts: {:?}", key, ts);
 
                     if let Some(machine) = self.keys.get_mut(&key) {
-                        if let ReadResult::Value(value) = machine.validate(ts.clone()) {
+                        if let ReadResult::Value(value) = machine.validate(ts) {
                             for client_waiting in self.pending_reads.get(&key).unwrap_or(&vec![]) {
                                 if let HMessage::Client(client_id, _) = client_waiting {
                                     output.push(HMessage::Answer(

@@ -101,7 +101,7 @@ impl SharedState {
         let mut hermes = Hermes::new(config.id as u32);
         hermes.update_members(membership.members());
         SharedState {
-            cfg: config.clone(),
+            cfg: config,
             answer_latches: Arc::new(Mutex::new(HashMap::new())),
             hermes: Arc::new(Mutex::new(hermes)),
             peers: membership,
