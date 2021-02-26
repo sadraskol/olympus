@@ -80,7 +80,7 @@ async fn read(process_id: i32, client: &str, key: &str) -> std::io::Result<()> {
     stream.flush().await.unwrap();
 
     println!(
-        "{{:type :invoke, :process {}, :value [:r {} nil]}}",
+        "{{:type :invoke, :process {}, :value [[:r {} nil]]}}",
         process_id, key
     );
 
@@ -92,12 +92,12 @@ async fn read(process_id: i32, client: &str, key: &str) -> std::io::Result<()> {
 
     if result.get_read().get_is_nil() {
         println!(
-            "{{:type :ok, :process {}, :value [:r {} nil]}}",
+            "{{:type :ok, :process {}, :value [[:r {} nil]]}}",
             process_id, key
         );
     } else {
         println!(
-            "{{:type :ok, :process {}, :value [:r {} {}]}}",
+            "{{:type :ok, :process {}, :value [[:r {} {}]]}}",
             process_id,
             key,
             std::str::from_utf8(result.get_read().get_value()).unwrap()
@@ -123,7 +123,7 @@ async fn write(process_id: i32, client: &str, key: &str, value: &str) -> std::io
     stream.flush().await?;
 
     println!(
-        "{{:type :invoke, :process {}, :value [:w {} {}]}}",
+        "{{:type :invoke, :process {}, :value [[:w {} {}]]}}",
         process_id, key, value
     );
 
@@ -135,11 +135,11 @@ async fn write(process_id: i32, client: &str, key: &str, value: &str) -> std::io
 
     match result.get_write().get_code() {
         WriteAnswer_WriteType::Ok => println!(
-            "{{:type :ok, :process {}, :value [:w {} {}]}}",
+            "{{:type :ok, :process {}, :value [[:w {} {}]]}}",
             process_id, key, value
         ),
         WriteAnswer_WriteType::Refused => println!(
-            "{{:type :fail, :process {}, :value [:w {} {}]}}",
+            "{{:type :fail, :process {}, :value [[:w {} {}]]}}",
             process_id, key, value
         ),
     }
