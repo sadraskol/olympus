@@ -9,7 +9,9 @@ use olympus::proto::queries::{
     WriteAnswer_WriteType,
 };
 
-use crate::state::{Key, MachineValue, Member, ReadResult, Timestamp, Value, WriteResult};
+use crate::state::{
+    InvalidResult, Key, MachineValue, Member, ReadResult, Timestamp, Value, WriteResult,
+};
 
 fn nil_read_answer() -> Answers {
     let mut answer = Answers::new();
@@ -200,7 +202,11 @@ impl Hermes {
                     );
 
                     if let Some(machine) = self.keys.get_mut(&key) {
-                        machine.invalid(ts.clone(), value);
+                        if let InvalidResult::WriteCancelled(client) =
+                            machine.invalid(ts.clone(), value)
+                        {
+                            output.push(HMessage::Answer(client, write_answer_refused()));
+                        }
                     } else {
                         self.keys
                             .insert(key.clone(), MachineValue::invalid_value(ts.clone(), value));
@@ -411,8 +417,32 @@ mod hermes_test {
             hermes.run(HMessage::Client(ClientId(1), write_command(&key, &value))),
             vec![HMessage::Sync(
                 Member(2),
-                inv_msg(&key, &expected_ts, &value)
+                inv_msg(&key, &expected_ts, &value),
             )]
+        );
+    }
+
+    #[test]
+    fn when_write_are_invalidated_by_another_node_send_refused_write() {
+        let mut hermes = Hermes::new(1);
+        hermes.update_members(HashSet::from_iter(vec![Member(2)]));
+
+        let key = Key(vec![35, 36, 37]);
+        let value = Value(vec![1, 2, 3]);
+        let other_value = Value(vec![40, 41, 42]);
+
+        let timestamp = Timestamp::new(1, 2);
+
+        hermes.run(HMessage::Client(ClientId(2), write_command(&key, &value)));
+        assert_eq!(
+            hermes.run(HMessage::Sync(
+                Member(2),
+                inv_msg(&key, &timestamp, &other_value),
+            )),
+            vec![
+                HMessage::Answer(ClientId(2), write_answer_refused()),
+                HMessage::Sync(Member(2), ack_msg(&key, &timestamp))
+            ]
         );
     }
 }

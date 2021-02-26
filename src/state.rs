@@ -1,6 +1,7 @@
-use crate::hermes::ClientId;
 use std::collections::HashSet;
 use std::fmt::{Debug, Error, Formatter};
+
+use crate::hermes::ClientId;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Key(pub Vec<u8>);
@@ -39,20 +40,17 @@ enum State {
     ),
 }
 
-impl State {
-    fn can_be_invalidated(&self) -> bool {
-        if let State::Write(_, _) = self {
-            true
-        } else {
-            self == &State::Valid || self == &State::Inv
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReadResult {
     Pending,
     Value(Value),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum InvalidResult {
+    Discarded,
+    Accepted,
+    WriteCancelled(ClientId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -136,11 +134,18 @@ impl MachineValue {
         self.read()
     }
 
-    pub fn invalid(&mut self, ts: Timestamp, value: Value) {
-        if ts > self.timestamp && self.state.can_be_invalidated() {
+    pub fn invalid(&mut self, ts: Timestamp, value: Value) -> InvalidResult {
+        if ts > self.timestamp {
+            let previous_state = self.state.clone();
             self.state = State::Inv;
             self.timestamp = ts;
             self.value = value;
+            match previous_state {
+                State::Write(client, _) => InvalidResult::WriteCancelled(client),
+                _ => InvalidResult::Accepted,
+            }
+        } else {
+            InvalidResult::Discarded
         }
     }
 }
@@ -313,7 +318,7 @@ mod invalid_state {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use crate::state::{MachineValue, Member, State, Timestamp, Value};
+    use crate::state::{InvalidResult, MachineValue, Member, State, Timestamp, Value};
     use crate::ClientId;
 
     #[test]
@@ -325,7 +330,8 @@ mod invalid_state {
         };
         let expected = state.clone();
 
-        state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        let res = state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        assert_eq!(res, InvalidResult::Discarded);
         assert_eq!(state, expected);
     }
 
@@ -336,7 +342,8 @@ mod invalid_state {
             state: State::Write(ClientId(1), HashSet::from_iter(vec![Member(1), Member(3)])),
             timestamp: Timestamp::new(1, 1),
         };
-        state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        let res = state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        assert_eq!(res, InvalidResult::WriteCancelled(ClientId(1)));
         assert_eq!(
             state,
             MachineValue {
@@ -350,7 +357,7 @@ mod invalid_state {
 
 #[cfg(test)]
 mod test_follower_write {
-    use crate::state::{MachineValue, State, Timestamp, Value};
+    use crate::state::{InvalidResult, MachineValue, State, Timestamp, Value};
 
     #[test]
     fn invalidating_a_valid_key_override_the_value() {
@@ -360,7 +367,8 @@ mod test_follower_write {
             timestamp: Timestamp::new(0, 0),
         };
 
-        state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        let res = state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        assert_eq!(res, InvalidResult::Accepted);
         assert_eq!(
             state,
             MachineValue {
@@ -380,7 +388,8 @@ mod test_follower_write {
         };
         let expected = state.clone();
 
-        state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        let res = state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        assert_eq!(res, InvalidResult::Discarded);
         assert_eq!(state, expected);
     }
 
@@ -393,7 +402,8 @@ mod test_follower_write {
         };
         let expected = state.clone();
 
-        state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        let res = state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        assert_eq!(res, InvalidResult::Discarded);
         assert_eq!(state, expected);
     }
 
@@ -405,7 +415,8 @@ mod test_follower_write {
             timestamp: Timestamp::new(1, 1),
         };
 
-        state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        let res = state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        assert_eq!(res, InvalidResult::Accepted);
         assert_eq!(
             state,
             MachineValue {
