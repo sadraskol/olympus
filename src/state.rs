@@ -25,7 +25,7 @@ impl Debug for Value {
     }
 }
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Member(pub i32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]

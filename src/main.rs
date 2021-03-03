@@ -20,6 +20,7 @@ use tokio::task::JoinHandle;
 
 mod hermes;
 mod state;
+mod paxos;
 
 // Simplify Arc Mutex pattern
 type Shared<T> = Arc<Mutex<T>>;
