@@ -26,7 +26,7 @@ impl Debug for Value {
 }
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub struct Member(pub i32);
+pub struct Member(pub u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum State {

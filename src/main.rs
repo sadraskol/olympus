@@ -1,32 +1,37 @@
-use log::{info, LevelFilter};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicU32;
 use std::sync::{Arc, Condvar, Mutex};
 
+use log::{info, LevelFilter};
+use log4rs::append::file::FileAppender;
+use log4rs::config::{Appender, Root};
 use protobuf::Message;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-
-use olympus::config::{cfg, Config};
-use olympus::proto::hermes::HermesMessage;
-use olympus::proto::queries::{Answers, Commands};
-
-use crate::hermes::{ClientId, HMessage, Hermes};
-use crate::state::Member;
-use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Root};
 use tokio::task::JoinHandle;
 
+use olympus::config::{cfg, Config};
+use olympus::proto::hermes::{PeerMessage, PeerMessage_Type};
+use olympus::proto::queries::Commands;
+
+use crate::hermes::{Answer, ClientId, HMessage, Hermes};
+use crate::paxos::LeaseState;
+use crate::proto_ser::{Proto, ToPeerMessage};
+use crate::state::Member;
+use std::time::Duration;
+
 mod hermes;
-mod state;
 mod paxos;
+mod proto_ser;
+mod state;
 
 // Simplify Arc Mutex pattern
 type Shared<T> = Arc<Mutex<T>>;
 
 // Latch to send an answer to a client. Note that this latch is single-use only
-type AnswerLatch = Arc<(Mutex<Option<Answers>>, Condvar)>;
+type AnswerLatch = Arc<(Mutex<Option<Answer>>, Condvar)>;
 
 #[derive(Clone)]
 struct ClientGen {
@@ -58,21 +63,12 @@ impl Membership {
         let peers = cfg
             .peers
             .iter()
-            .map(|p| (Member(p.id as i32), p.addr()))
+            .map(|p| (Member(p.id as u32), p.addr()))
             .collect();
 
         Membership {
             list: Arc::new(Mutex::new(peers)),
         }
-    }
-
-    fn members(&self) -> HashSet<Member> {
-        self.list
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|(m, _)| m.clone())
-            .collect()
     }
 
     fn addr_by(&self, key: &Member) -> SocketAddr {
@@ -99,8 +95,7 @@ impl SharedState {
     fn new() -> Self {
         let config = cfg().unwrap();
         let membership = Membership::new(&config);
-        let mut hermes = Hermes::new(config.id as u32);
-        hermes.update_members(membership.members());
+        let hermes = Hermes::new(&config);
         SharedState {
             cfg: config,
             answer_latches: Arc::new(Mutex::new(HashMap::new())),
@@ -135,6 +130,11 @@ async fn main() -> std::io::Result<()> {
     Ok(())
 }
 
+enum Action {
+    Wait(Duration),
+    Send(Vec<HMessage>),
+}
+
 async fn hermes_listener(shared_state: SharedState) -> JoinHandle<()> {
     tokio::spawn(async move {
         info!("listen to peers requests");
@@ -143,6 +143,37 @@ async fn hermes_listener(shared_state: SharedState) -> JoinHandle<()> {
             .await
             .unwrap();
 
+        let membership_loop = shared_state.clone();
+        tokio::spawn(async move {
+            loop {
+                let action = {
+                    let mut guard = membership_loop.hermes.lock().unwrap();
+                    match guard.lease_state() {
+                        LeaseState::Expired => Action::Send(guard.start()),
+                        LeaseState::Renewing(duration) => Action::Wait(duration),
+                        LeaseState::PendingUntil(duration) => Action::Wait(duration),
+                    }
+                };
+
+                match action {
+                    Action::Wait(duration) => {
+                        tokio::time::sleep(duration).await;
+                    }
+                    Action::Send(membership_messages) => {
+                        for message in membership_messages {
+                            if let HMessage::Paxos(member, msg) = message {
+                                let socket = membership_loop.peers.addr_by(&member);
+                                let self_id = membership_loop.cfg.id as u32;
+
+                                tokio::spawn(async move {
+                                    send_sync_message(&socket, self_id, msg).await.unwrap();
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        });
         loop {
             if let Ok((stream, _)) = listener.accept().await {
                 let state = shared_state.clone();
@@ -160,19 +191,35 @@ async fn peer_socket_handler(state: SharedState, mut stream: TcpStream) -> std::
         let mut buf = vec![0; size as usize];
         stream.read_exact(&mut buf).await?;
 
-        let message = HermesMessage::parse_from_bytes(&buf).unwrap();
-        let peer_id = Member(message.get_sender_id() as i32);
+        let message = PeerMessage::parse_from_bytes(&buf).unwrap();
+        let hmessage = match message.get_field_type() {
+            PeerMessage_Type::Paxos => {
+                let peer_id = Member(message.get_paxos().get_sender_id());
+                HMessage::Paxos(peer_id, Proto::from_proto(message.get_paxos()))
+            }
+            PeerMessage_Type::Hermes => {
+                let peer_id = Member(message.get_hermes().get_sender_id());
+                HMessage::Sync(peer_id, Proto::from_proto(message.get_hermes()))
+            }
+        };
 
         let mut guard = state.hermes.lock().unwrap();
-        guard.run(HMessage::Sync(peer_id, message))
+        guard.run(hmessage)
     };
     for message in messages {
         match message {
-            HMessage::Sync(member, mut msg) => {
+            HMessage::Sync(member, msg) => {
                 let socket = state.peers.addr_by(&member);
-                msg.set_sender_id(state.cfg.id as u32);
+                let self_id = state.cfg.id as u32;
                 tokio::spawn(async move {
-                    send_sync_message(&socket, msg).await.unwrap();
+                    send_sync_message(&socket, self_id, msg).await.unwrap();
+                });
+            }
+            HMessage::Paxos(member, msg) => {
+                let socket = state.peers.addr_by(&member);
+                let self_id = state.cfg.id as u32;
+                tokio::spawn(async move {
+                    send_sync_message(&socket, self_id, msg).await.unwrap();
                 });
             }
             HMessage::Client(_, _) => {
@@ -239,19 +286,29 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
             HMessage::Answer(_, response) => {
                 maybe_response = Some(response);
             }
-            HMessage::Sync(member, mut msg) => {
+            HMessage::Sync(member, msg) => {
                 let socket = state.peers.addr_by(&member);
-                msg.set_sender_id(state.cfg.id as u32);
+                let self_id = state.cfg.id as u32;
                 tokio::spawn(async move {
-                    send_sync_message(&socket, msg).await.unwrap();
+                    send_sync_message(&socket, self_id, msg).await.unwrap();
+                })
+                .await?;
+            }
+            HMessage::Paxos(member, msg) => {
+                let socket = state.peers.addr_by(&member);
+                let self_id = state.cfg.id as u32;
+                tokio::spawn(async move {
+                    send_sync_message(&socket, self_id, msg).await.unwrap();
                 })
                 .await?;
             }
         }
     }
 
+    let self_id = state.cfg.id as u32;
+
     let res = if let Some(response) = maybe_response {
-        response.write_to_bytes()?
+        response.to_proto(self_id).write_to_bytes()?
     } else {
         let (lock, cvar) = &*local_pair;
         let mut guard = lock.lock().unwrap();
@@ -259,7 +316,7 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
             guard = cvar.wait(guard).unwrap();
         }
         if let Some(answer) = &*guard {
-            answer.write_to_bytes()?
+            answer.to_proto(self_id).write_to_bytes()?
         } else {
             panic!("no answer available, lock poisoned???");
         }
@@ -271,14 +328,15 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
     Ok(())
 }
 
-async fn send_sync_message(
+async fn send_sync_message<T: ToPeerMessage + Debug>(
     peer_socket: &SocketAddr,
-    message: HermesMessage,
+    node_id: u32,
+    message: T,
 ) -> std::io::Result<()> {
     info!("sending sync message {:?}", message);
 
     let mut stream = TcpStream::connect(peer_socket).await?;
-    let vec = message.write_to_bytes()?;
+    let vec = message.as_peer(node_id).write_to_bytes()?;
     stream.write_u64(vec.len() as u64).await?;
     stream.write_all(&vec).await
 }

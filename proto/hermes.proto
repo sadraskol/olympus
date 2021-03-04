@@ -19,6 +19,20 @@ message Inv {
   required bytes value = 5;
 }
 
+message PaxosMessage {
+  enum PaxosType {
+    P1a = 0;
+    P1b = 1;
+    P2a = 2;
+    P2b = 3;
+    Leasing = 4;
+  }
+  required PaxosType type = 1;
+  repeated uint32 value = 2 [packed=true];
+  required uint32 sender_id = 3;
+  required uint64 epoch_id = 4;
+}
+
 message HermesMessage {
   enum HermesType {
     Inv = 0;
@@ -29,4 +43,14 @@ message HermesMessage {
   optional Inv inv = 2;
   optional AckOrVal ack_or_val = 3;
   required uint32 sender_id = 4;
+}
+
+message PeerMessage {
+  enum Type {
+    Paxos = 0;
+    Hermes = 1;
+  }
+  required Type type = 1;
+  optional HermesMessage hermes = 4;
+  optional PaxosMessage paxos = 5;
 }

@@ -744,6 +744,350 @@ impl ::protobuf::reflect::ProtobufValue for Inv {
 }
 
 #[derive(PartialEq,Clone,Default)]
+pub struct PaxosMessage {
+    // message fields
+    field_type: ::std::option::Option<PaxosMessage_PaxosType>,
+    pub value: ::std::vec::Vec<u32>,
+    sender_id: ::std::option::Option<u32>,
+    epoch_id: ::std::option::Option<u64>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a PaxosMessage {
+    fn default() -> &'a PaxosMessage {
+        <PaxosMessage as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl PaxosMessage {
+    pub fn new() -> PaxosMessage {
+        ::std::default::Default::default()
+    }
+
+    // required .PaxosMessage.PaxosType type = 1;
+
+
+    pub fn get_field_type(&self) -> PaxosMessage_PaxosType {
+        self.field_type.unwrap_or(PaxosMessage_PaxosType::P1a)
+    }
+    pub fn clear_field_type(&mut self) {
+        self.field_type = ::std::option::Option::None;
+    }
+
+    pub fn has_field_type(&self) -> bool {
+        self.field_type.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_field_type(&mut self, v: PaxosMessage_PaxosType) {
+        self.field_type = ::std::option::Option::Some(v);
+    }
+
+    // repeated uint32 value = 2;
+
+
+    pub fn get_value(&self) -> &[u32] {
+        &self.value
+    }
+    pub fn clear_value(&mut self) {
+        self.value.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_value(&mut self, v: ::std::vec::Vec<u32>) {
+        self.value = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_value(&mut self) -> &mut ::std::vec::Vec<u32> {
+        &mut self.value
+    }
+
+    // Take field
+    pub fn take_value(&mut self) -> ::std::vec::Vec<u32> {
+        ::std::mem::replace(&mut self.value, ::std::vec::Vec::new())
+    }
+
+    // required uint32 sender_id = 3;
+
+
+    pub fn get_sender_id(&self) -> u32 {
+        self.sender_id.unwrap_or(0)
+    }
+    pub fn clear_sender_id(&mut self) {
+        self.sender_id = ::std::option::Option::None;
+    }
+
+    pub fn has_sender_id(&self) -> bool {
+        self.sender_id.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_sender_id(&mut self, v: u32) {
+        self.sender_id = ::std::option::Option::Some(v);
+    }
+
+    // required uint64 epoch_id = 4;
+
+
+    pub fn get_epoch_id(&self) -> u64 {
+        self.epoch_id.unwrap_or(0)
+    }
+    pub fn clear_epoch_id(&mut self) {
+        self.epoch_id = ::std::option::Option::None;
+    }
+
+    pub fn has_epoch_id(&self) -> bool {
+        self.epoch_id.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_epoch_id(&mut self, v: u64) {
+        self.epoch_id = ::std::option::Option::Some(v);
+    }
+}
+
+impl ::protobuf::Message for PaxosMessage {
+    fn is_initialized(&self) -> bool {
+        if self.field_type.is_none() {
+            return false;
+        }
+        if self.sender_id.is_none() {
+            return false;
+        }
+        if self.epoch_id.is_none() {
+            return false;
+        }
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_proto2_enum_with_unknown_fields_into(wire_type, is, &mut self.field_type, 1, &mut self.unknown_fields)?
+                },
+                2 => {
+                    ::protobuf::rt::read_repeated_uint32_into(wire_type, is, &mut self.value)?;
+                },
+                3 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.sender_id = ::std::option::Option::Some(tmp);
+                },
+                4 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint64()?;
+                    self.epoch_id = ::std::option::Option::Some(tmp);
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if let Some(v) = self.field_type {
+            my_size += ::protobuf::rt::enum_size(1, v);
+        }
+        if !self.value.is_empty() {
+            my_size += ::protobuf::rt::vec_packed_varint_size(2, &self.value);
+        }
+        if let Some(v) = self.sender_id {
+            my_size += ::protobuf::rt::value_size(3, v, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if let Some(v) = self.epoch_id {
+            my_size += ::protobuf::rt::value_size(4, v, ::protobuf::wire_format::WireTypeVarint);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if let Some(v) = self.field_type {
+            os.write_enum(1, ::protobuf::ProtobufEnum::value(&v))?;
+        }
+        if !self.value.is_empty() {
+            os.write_tag(2, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            // TODO: Data size is computed again, it should be cached
+            os.write_raw_varint32(::protobuf::rt::vec_packed_varint_data_size(&self.value))?;
+            for v in &self.value {
+                os.write_uint32_no_tag(*v)?;
+            };
+        }
+        if let Some(v) = self.sender_id {
+            os.write_uint32(3, v)?;
+        }
+        if let Some(v) = self.epoch_id {
+            os.write_uint64(4, v)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> PaxosMessage {
+        PaxosMessage::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeEnum<PaxosMessage_PaxosType>>(
+                "type",
+                |m: &PaxosMessage| { &m.field_type },
+                |m: &mut PaxosMessage| { &mut m.field_type },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_vec_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "value",
+                |m: &PaxosMessage| { &m.value },
+                |m: &mut PaxosMessage| { &mut m.value },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "sender_id",
+                |m: &PaxosMessage| { &m.sender_id },
+                |m: &mut PaxosMessage| { &mut m.sender_id },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
+                "epoch_id",
+                |m: &PaxosMessage| { &m.epoch_id },
+                |m: &mut PaxosMessage| { &mut m.epoch_id },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<PaxosMessage>(
+                "PaxosMessage",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static PaxosMessage {
+        static instance: ::protobuf::rt::LazyV2<PaxosMessage> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(PaxosMessage::new)
+    }
+}
+
+impl ::protobuf::Clear for PaxosMessage {
+    fn clear(&mut self) {
+        self.field_type = ::std::option::Option::None;
+        self.value.clear();
+        self.sender_id = ::std::option::Option::None;
+        self.epoch_id = ::std::option::Option::None;
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for PaxosMessage {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for PaxosMessage {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(Clone,PartialEq,Eq,Debug,Hash)]
+pub enum PaxosMessage_PaxosType {
+    P1a = 0,
+    P1b = 1,
+    P2a = 2,
+    P2b = 3,
+    Leasing = 4,
+}
+
+impl ::protobuf::ProtobufEnum for PaxosMessage_PaxosType {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<PaxosMessage_PaxosType> {
+        match value {
+            0 => ::std::option::Option::Some(PaxosMessage_PaxosType::P1a),
+            1 => ::std::option::Option::Some(PaxosMessage_PaxosType::P1b),
+            2 => ::std::option::Option::Some(PaxosMessage_PaxosType::P2a),
+            3 => ::std::option::Option::Some(PaxosMessage_PaxosType::P2b),
+            4 => ::std::option::Option::Some(PaxosMessage_PaxosType::Leasing),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [PaxosMessage_PaxosType] = &[
+            PaxosMessage_PaxosType::P1a,
+            PaxosMessage_PaxosType::P1b,
+            PaxosMessage_PaxosType::P2a,
+            PaxosMessage_PaxosType::P2b,
+            PaxosMessage_PaxosType::Leasing,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            ::protobuf::reflect::EnumDescriptor::new_pb_name::<PaxosMessage_PaxosType>("PaxosMessage.PaxosType", file_descriptor_proto())
+        })
+    }
+}
+
+impl ::std::marker::Copy for PaxosMessage_PaxosType {
+}
+
+impl ::std::default::Default for PaxosMessage_PaxosType {
+    fn default() -> Self {
+        PaxosMessage_PaxosType::P1a
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for PaxosMessage_PaxosType {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Enum(::protobuf::ProtobufEnum::descriptor(self))
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
 pub struct HermesMessage {
     // message fields
     field_type: ::std::option::Option<HermesMessage_HermesType>,
@@ -1107,18 +1451,347 @@ impl ::protobuf::reflect::ProtobufValue for HermesMessage_HermesType {
     }
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct PeerMessage {
+    // message fields
+    field_type: ::std::option::Option<PeerMessage_Type>,
+    pub hermes: ::protobuf::SingularPtrField<HermesMessage>,
+    pub paxos: ::protobuf::SingularPtrField<PaxosMessage>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a PeerMessage {
+    fn default() -> &'a PeerMessage {
+        <PeerMessage as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl PeerMessage {
+    pub fn new() -> PeerMessage {
+        ::std::default::Default::default()
+    }
+
+    // required .PeerMessage.Type type = 1;
+
+
+    pub fn get_field_type(&self) -> PeerMessage_Type {
+        self.field_type.unwrap_or(PeerMessage_Type::Paxos)
+    }
+    pub fn clear_field_type(&mut self) {
+        self.field_type = ::std::option::Option::None;
+    }
+
+    pub fn has_field_type(&self) -> bool {
+        self.field_type.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_field_type(&mut self, v: PeerMessage_Type) {
+        self.field_type = ::std::option::Option::Some(v);
+    }
+
+    // optional .HermesMessage hermes = 4;
+
+
+    pub fn get_hermes(&self) -> &HermesMessage {
+        self.hermes.as_ref().unwrap_or_else(|| <HermesMessage as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_hermes(&mut self) {
+        self.hermes.clear();
+    }
+
+    pub fn has_hermes(&self) -> bool {
+        self.hermes.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_hermes(&mut self, v: HermesMessage) {
+        self.hermes = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_hermes(&mut self) -> &mut HermesMessage {
+        if self.hermes.is_none() {
+            self.hermes.set_default();
+        }
+        self.hermes.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_hermes(&mut self) -> HermesMessage {
+        self.hermes.take().unwrap_or_else(|| HermesMessage::new())
+    }
+
+    // optional .PaxosMessage paxos = 5;
+
+
+    pub fn get_paxos(&self) -> &PaxosMessage {
+        self.paxos.as_ref().unwrap_or_else(|| <PaxosMessage as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_paxos(&mut self) {
+        self.paxos.clear();
+    }
+
+    pub fn has_paxos(&self) -> bool {
+        self.paxos.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_paxos(&mut self, v: PaxosMessage) {
+        self.paxos = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_paxos(&mut self) -> &mut PaxosMessage {
+        if self.paxos.is_none() {
+            self.paxos.set_default();
+        }
+        self.paxos.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_paxos(&mut self) -> PaxosMessage {
+        self.paxos.take().unwrap_or_else(|| PaxosMessage::new())
+    }
+}
+
+impl ::protobuf::Message for PeerMessage {
+    fn is_initialized(&self) -> bool {
+        if self.field_type.is_none() {
+            return false;
+        }
+        for v in &self.hermes {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        for v in &self.paxos {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_proto2_enum_with_unknown_fields_into(wire_type, is, &mut self.field_type, 1, &mut self.unknown_fields)?
+                },
+                4 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.hermes)?;
+                },
+                5 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.paxos)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if let Some(v) = self.field_type {
+            my_size += ::protobuf::rt::enum_size(1, v);
+        }
+        if let Some(ref v) = self.hermes.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
+        if let Some(ref v) = self.paxos.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if let Some(v) = self.field_type {
+            os.write_enum(1, ::protobuf::ProtobufEnum::value(&v))?;
+        }
+        if let Some(ref v) = self.hermes.as_ref() {
+            os.write_tag(4, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
+        if let Some(ref v) = self.paxos.as_ref() {
+            os.write_tag(5, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> PeerMessage {
+        PeerMessage::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeEnum<PeerMessage_Type>>(
+                "type",
+                |m: &PeerMessage| { &m.field_type },
+                |m: &mut PeerMessage| { &mut m.field_type },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<HermesMessage>>(
+                "hermes",
+                |m: &PeerMessage| { &m.hermes },
+                |m: &mut PeerMessage| { &mut m.hermes },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<PaxosMessage>>(
+                "paxos",
+                |m: &PeerMessage| { &m.paxos },
+                |m: &mut PeerMessage| { &mut m.paxos },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<PeerMessage>(
+                "PeerMessage",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static PeerMessage {
+        static instance: ::protobuf::rt::LazyV2<PeerMessage> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(PeerMessage::new)
+    }
+}
+
+impl ::protobuf::Clear for PeerMessage {
+    fn clear(&mut self) {
+        self.field_type = ::std::option::Option::None;
+        self.hermes.clear();
+        self.paxos.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for PeerMessage {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for PeerMessage {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(Clone,PartialEq,Eq,Debug,Hash)]
+pub enum PeerMessage_Type {
+    Paxos = 0,
+    Hermes = 1,
+}
+
+impl ::protobuf::ProtobufEnum for PeerMessage_Type {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<PeerMessage_Type> {
+        match value {
+            0 => ::std::option::Option::Some(PeerMessage_Type::Paxos),
+            1 => ::std::option::Option::Some(PeerMessage_Type::Hermes),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [PeerMessage_Type] = &[
+            PeerMessage_Type::Paxos,
+            PeerMessage_Type::Hermes,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            ::protobuf::reflect::EnumDescriptor::new_pb_name::<PeerMessage_Type>("PeerMessage.Type", file_descriptor_proto())
+        })
+    }
+}
+
+impl ::std::marker::Copy for PeerMessage_Type {
+}
+
+impl ::std::default::Default for PeerMessage_Type {
+    fn default() -> Self {
+        PeerMessage_Type::Paxos
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for PeerMessage_Type {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Enum(::protobuf::ProtobufEnum::descriptor(self))
+    }
+}
+
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x0chermes.proto\"7\n\tTimestamp\x12\x18\n\x07version\x18\x01\x20\x02(\
     \rR\x07version\x12\x10\n\x03cid\x18\x02\x20\x02(\rR\x03cid\"8\n\x08AckOr\
     Val\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\x12\x1a\n\x02ts\x18\
     \x03\x20\x02(\x0b2\n.TimestampR\x02ts\"I\n\x03Inv\x12\x10\n\x03key\x18\
     \x01\x20\x02(\x0cR\x03key\x12\x1a\n\x02ts\x18\x03\x20\x02(\x0b2\n.Timest\
-    ampR\x02ts\x12\x14\n\x05value\x18\x05\x20\x02(\x0cR\x05value\"\xc5\x01\n\
-    \rHermesMessage\x12-\n\x04type\x18\x01\x20\x02(\x0e2\x19.HermesMessage.H\
-    ermesTypeR\x04type\x12\x16\n\x03inv\x18\x02\x20\x01(\x0b2\x04.InvR\x03in\
-    v\x12'\n\nack_or_val\x18\x03\x20\x01(\x0b2\t.AckOrValR\x08ackOrVal\x12\
-    \x1b\n\tsender_id\x18\x04\x20\x02(\rR\x08senderId\"'\n\nHermesType\x12\
-    \x07\n\x03Inv\x10\0\x12\x07\n\x03Val\x10\x01\x12\x07\n\x03Ack\x10\x02\
+    ampR\x02ts\x12\x14\n\x05value\x18\x05\x20\x02(\x0cR\x05value\"\xcb\x01\n\
+    \x0cPaxosMessage\x12+\n\x04type\x18\x01\x20\x02(\x0e2\x17.PaxosMessage.P\
+    axosTypeR\x04type\x12\x18\n\x05value\x18\x02\x20\x03(\rR\x05valueB\x02\
+    \x10\x01\x12\x1b\n\tsender_id\x18\x03\x20\x02(\rR\x08senderId\x12\x19\n\
+    \x08epoch_id\x18\x04\x20\x02(\x04R\x07epochId\"<\n\tPaxosType\x12\x07\n\
+    \x03P1a\x10\0\x12\x07\n\x03P1b\x10\x01\x12\x07\n\x03P2a\x10\x02\x12\x07\
+    \n\x03P2b\x10\x03\x12\x0b\n\x07Leasing\x10\x04\"\xc5\x01\n\rHermesMessag\
+    e\x12-\n\x04type\x18\x01\x20\x02(\x0e2\x19.HermesMessage.HermesTypeR\x04\
+    type\x12\x16\n\x03inv\x18\x02\x20\x01(\x0b2\x04.InvR\x03inv\x12'\n\nack_\
+    or_val\x18\x03\x20\x01(\x0b2\t.AckOrValR\x08ackOrVal\x12\x1b\n\tsender_i\
+    d\x18\x04\x20\x02(\rR\x08senderId\"'\n\nHermesType\x12\x07\n\x03Inv\x10\
+    \0\x12\x07\n\x03Val\x10\x01\x12\x07\n\x03Ack\x10\x02\"\xa0\x01\n\x0bPeer\
+    Message\x12%\n\x04type\x18\x01\x20\x02(\x0e2\x11.PeerMessage.TypeR\x04ty\
+    pe\x12&\n\x06hermes\x18\x04\x20\x01(\x0b2\x0e.HermesMessageR\x06hermes\
+    \x12#\n\x05paxos\x18\x05\x20\x01(\x0b2\r.PaxosMessageR\x05paxos\"\x1d\n\
+    \x04Type\x12\t\n\x05Paxos\x10\0\x12\n\n\x06Hermes\x10\x01\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

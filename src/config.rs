@@ -14,6 +14,23 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn test_setup(id: u16, peers: Vec<u16>) -> Self {
+        Config {
+            host: "".to_string(),
+            port: 0,
+            internal_port: 0,
+            peers: peers
+                .iter()
+                .map(|peer_id| Peer {
+                    host: "".to_string(),
+                    port: 0,
+                    id: *peer_id,
+                })
+                .collect(),
+            id,
+        }
+    }
+
     pub fn client_addr(&self) -> SocketAddr {
         SocketAddr::V4(SocketAddrV4::new(
             Ipv4Addr::from_str(&self.host).unwrap(),
