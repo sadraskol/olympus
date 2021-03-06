@@ -7,13 +7,13 @@ message Timestamp {
 
 message AckOrVal {
   required bytes key = 1;
-  // epoch = 2
+  required uint64 epoch = 2;
   required Timestamp ts = 3;
 }
 
 message Inv {
   required bytes key = 1;
-  // epoch = 2
+  required uint64 epoch = 2;
   required Timestamp ts = 3;
   // rmw = 4
   required bytes value = 5;

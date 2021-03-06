@@ -36,6 +36,7 @@ impl Proto<olympus::proto::hermes::HermesMessage> for HermesMessage {
             HermesMessage_HermesType::Inv => {
                 let inv = msg.get_inv();
                 HermesMessage::Inv {
+                    epoch_id: inv.get_epoch(),
                     key: Key(inv.get_key().to_vec()),
                     value: Value(inv.get_value().to_vec()),
                     ts: Proto::from_proto(inv.get_ts()),
@@ -44,6 +45,7 @@ impl Proto<olympus::proto::hermes::HermesMessage> for HermesMessage {
             HermesMessage_HermesType::Val => {
                 let val = msg.get_ack_or_val();
                 HermesMessage::Val {
+                    epoch_id: val.get_epoch(),
                     key: Key(val.get_key().to_vec()),
                     ts: Proto::from_proto(val.get_ts()),
                 }
@@ -51,6 +53,7 @@ impl Proto<olympus::proto::hermes::HermesMessage> for HermesMessage {
             HermesMessage_HermesType::Ack => {
                 let ack = msg.get_ack_or_val();
                 HermesMessage::Ack {
+                    epoch_id: ack.get_epoch(),
                     key: Key(ack.get_key().to_vec()),
                     ts: Proto::from_proto(ack.get_ts()),
                 }
@@ -63,27 +66,39 @@ impl Proto<olympus::proto::hermes::HermesMessage> for HermesMessage {
         msg.set_sender_id(node_id);
         match self {
             HermesMessage::Inv {
+                epoch_id,
                 key,
                 value,
                 ts: timestamp,
             } => {
                 msg.set_field_type(HermesMessage_HermesType::Inv);
                 let mut inval = proto::hermes::Inv::new();
+                inval.set_epoch(*epoch_id);
                 inval.set_key(key.0.clone());
                 inval.set_value(value.0.clone());
                 inval.set_ts(timestamp.to_proto(node_id));
                 msg.set_inv(inval);
             }
-            HermesMessage::Ack { key, ts: timestamp } => {
+            HermesMessage::Ack {
+                epoch_id,
+                key,
+                ts: timestamp,
+            } => {
                 msg.set_field_type(HermesMessage_HermesType::Ack);
                 let mut acking = AckOrVal::new();
+                acking.set_epoch(*epoch_id);
                 acking.set_key(key.0.clone());
                 acking.set_ts(timestamp.to_proto(node_id));
                 msg.set_ack_or_val(acking);
             }
-            HermesMessage::Val { key, ts: timestamp } => {
+            HermesMessage::Val {
+                epoch_id,
+                key,
+                ts: timestamp,
+            } => {
                 msg.set_field_type(HermesMessage_HermesType::Val);
                 let mut valid = AckOrVal::new();
+                valid.set_epoch(*epoch_id);
                 valid.set_key(key.0.clone());
                 valid.set_ts(timestamp.to_proto(node_id));
                 msg.set_ack_or_val(valid);

@@ -228,6 +228,7 @@ impl ::protobuf::reflect::ProtobufValue for Timestamp {
 pub struct AckOrVal {
     // message fields
     key: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    epoch: ::std::option::Option<u64>,
     pub ts: ::protobuf::SingularPtrField<Timestamp>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
@@ -281,6 +282,25 @@ impl AckOrVal {
         self.key.take().unwrap_or_else(|| ::std::vec::Vec::new())
     }
 
+    // required uint64 epoch = 2;
+
+
+    pub fn get_epoch(&self) -> u64 {
+        self.epoch.unwrap_or(0)
+    }
+    pub fn clear_epoch(&mut self) {
+        self.epoch = ::std::option::Option::None;
+    }
+
+    pub fn has_epoch(&self) -> bool {
+        self.epoch.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_epoch(&mut self, v: u64) {
+        self.epoch = ::std::option::Option::Some(v);
+    }
+
     // required .Timestamp ts = 3;
 
 
@@ -320,6 +340,9 @@ impl ::protobuf::Message for AckOrVal {
         if self.key.is_none() {
             return false;
         }
+        if self.epoch.is_none() {
+            return false;
+        }
         if self.ts.is_none() {
             return false;
         }
@@ -337,6 +360,13 @@ impl ::protobuf::Message for AckOrVal {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.key)?;
+                },
+                2 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint64()?;
+                    self.epoch = ::std::option::Option::Some(tmp);
                 },
                 3 => {
                     ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.ts)?;
@@ -356,6 +386,9 @@ impl ::protobuf::Message for AckOrVal {
         if let Some(ref v) = self.key.as_ref() {
             my_size += ::protobuf::rt::bytes_size(1, &v);
         }
+        if let Some(v) = self.epoch {
+            my_size += ::protobuf::rt::value_size(2, v, ::protobuf::wire_format::WireTypeVarint);
+        }
         if let Some(ref v) = self.ts.as_ref() {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
@@ -368,6 +401,9 @@ impl ::protobuf::Message for AckOrVal {
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
         if let Some(ref v) = self.key.as_ref() {
             os.write_bytes(1, &v)?;
+        }
+        if let Some(v) = self.epoch {
+            os.write_uint64(2, v)?;
         }
         if let Some(ref v) = self.ts.as_ref() {
             os.write_tag(3, ::protobuf::wire_format::WireTypeLengthDelimited)?;
@@ -417,6 +453,11 @@ impl ::protobuf::Message for AckOrVal {
                 |m: &AckOrVal| { &m.key },
                 |m: &mut AckOrVal| { &mut m.key },
             ));
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
+                "epoch",
+                |m: &AckOrVal| { &m.epoch },
+                |m: &mut AckOrVal| { &mut m.epoch },
+            ));
             fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Timestamp>>(
                 "ts",
                 |m: &AckOrVal| { &m.ts },
@@ -439,6 +480,7 @@ impl ::protobuf::Message for AckOrVal {
 impl ::protobuf::Clear for AckOrVal {
     fn clear(&mut self) {
         self.key.clear();
+        self.epoch = ::std::option::Option::None;
         self.ts.clear();
         self.unknown_fields.clear();
     }
@@ -460,6 +502,7 @@ impl ::protobuf::reflect::ProtobufValue for AckOrVal {
 pub struct Inv {
     // message fields
     key: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    epoch: ::std::option::Option<u64>,
     pub ts: ::protobuf::SingularPtrField<Timestamp>,
     value: ::protobuf::SingularField<::std::vec::Vec<u8>>,
     // special fields
@@ -512,6 +555,25 @@ impl Inv {
     // Take field
     pub fn take_key(&mut self) -> ::std::vec::Vec<u8> {
         self.key.take().unwrap_or_else(|| ::std::vec::Vec::new())
+    }
+
+    // required uint64 epoch = 2;
+
+
+    pub fn get_epoch(&self) -> u64 {
+        self.epoch.unwrap_or(0)
+    }
+    pub fn clear_epoch(&mut self) {
+        self.epoch = ::std::option::Option::None;
+    }
+
+    pub fn has_epoch(&self) -> bool {
+        self.epoch.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_epoch(&mut self, v: u64) {
+        self.epoch = ::std::option::Option::Some(v);
     }
 
     // required .Timestamp ts = 3;
@@ -589,6 +651,9 @@ impl ::protobuf::Message for Inv {
         if self.key.is_none() {
             return false;
         }
+        if self.epoch.is_none() {
+            return false;
+        }
         if self.ts.is_none() {
             return false;
         }
@@ -609,6 +674,13 @@ impl ::protobuf::Message for Inv {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.key)?;
+                },
+                2 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint64()?;
+                    self.epoch = ::std::option::Option::Some(tmp);
                 },
                 3 => {
                     ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.ts)?;
@@ -631,6 +703,9 @@ impl ::protobuf::Message for Inv {
         if let Some(ref v) = self.key.as_ref() {
             my_size += ::protobuf::rt::bytes_size(1, &v);
         }
+        if let Some(v) = self.epoch {
+            my_size += ::protobuf::rt::value_size(2, v, ::protobuf::wire_format::WireTypeVarint);
+        }
         if let Some(ref v) = self.ts.as_ref() {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
@@ -646,6 +721,9 @@ impl ::protobuf::Message for Inv {
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
         if let Some(ref v) = self.key.as_ref() {
             os.write_bytes(1, &v)?;
+        }
+        if let Some(v) = self.epoch {
+            os.write_uint64(2, v)?;
         }
         if let Some(ref v) = self.ts.as_ref() {
             os.write_tag(3, ::protobuf::wire_format::WireTypeLengthDelimited)?;
@@ -698,6 +776,11 @@ impl ::protobuf::Message for Inv {
                 |m: &Inv| { &m.key },
                 |m: &mut Inv| { &mut m.key },
             ));
+            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
+                "epoch",
+                |m: &Inv| { &m.epoch },
+                |m: &mut Inv| { &mut m.epoch },
+            ));
             fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Timestamp>>(
                 "ts",
                 |m: &Inv| { &m.ts },
@@ -725,6 +808,7 @@ impl ::protobuf::Message for Inv {
 impl ::protobuf::Clear for Inv {
     fn clear(&mut self) {
         self.key.clear();
+        self.epoch = ::std::option::Option::None;
         self.ts.clear();
         self.value.clear();
         self.unknown_fields.clear();
@@ -1772,26 +1856,28 @@ impl ::protobuf::reflect::ProtobufValue for PeerMessage_Type {
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x0chermes.proto\"7\n\tTimestamp\x12\x18\n\x07version\x18\x01\x20\x02(\
-    \rR\x07version\x12\x10\n\x03cid\x18\x02\x20\x02(\rR\x03cid\"8\n\x08AckOr\
-    Val\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\x12\x1a\n\x02ts\x18\
-    \x03\x20\x02(\x0b2\n.TimestampR\x02ts\"I\n\x03Inv\x12\x10\n\x03key\x18\
-    \x01\x20\x02(\x0cR\x03key\x12\x1a\n\x02ts\x18\x03\x20\x02(\x0b2\n.Timest\
-    ampR\x02ts\x12\x14\n\x05value\x18\x05\x20\x02(\x0cR\x05value\"\xcb\x01\n\
-    \x0cPaxosMessage\x12+\n\x04type\x18\x01\x20\x02(\x0e2\x17.PaxosMessage.P\
-    axosTypeR\x04type\x12\x18\n\x05value\x18\x02\x20\x03(\rR\x05valueB\x02\
-    \x10\x01\x12\x1b\n\tsender_id\x18\x03\x20\x02(\rR\x08senderId\x12\x19\n\
-    \x08epoch_id\x18\x04\x20\x02(\x04R\x07epochId\"<\n\tPaxosType\x12\x07\n\
-    \x03P1a\x10\0\x12\x07\n\x03P1b\x10\x01\x12\x07\n\x03P2a\x10\x02\x12\x07\
-    \n\x03P2b\x10\x03\x12\x0b\n\x07Leasing\x10\x04\"\xc5\x01\n\rHermesMessag\
-    e\x12-\n\x04type\x18\x01\x20\x02(\x0e2\x19.HermesMessage.HermesTypeR\x04\
-    type\x12\x16\n\x03inv\x18\x02\x20\x01(\x0b2\x04.InvR\x03inv\x12'\n\nack_\
-    or_val\x18\x03\x20\x01(\x0b2\t.AckOrValR\x08ackOrVal\x12\x1b\n\tsender_i\
-    d\x18\x04\x20\x02(\rR\x08senderId\"'\n\nHermesType\x12\x07\n\x03Inv\x10\
-    \0\x12\x07\n\x03Val\x10\x01\x12\x07\n\x03Ack\x10\x02\"\xa0\x01\n\x0bPeer\
-    Message\x12%\n\x04type\x18\x01\x20\x02(\x0e2\x11.PeerMessage.TypeR\x04ty\
-    pe\x12&\n\x06hermes\x18\x04\x20\x01(\x0b2\x0e.HermesMessageR\x06hermes\
-    \x12#\n\x05paxos\x18\x05\x20\x01(\x0b2\r.PaxosMessageR\x05paxos\"\x1d\n\
-    \x04Type\x12\t\n\x05Paxos\x10\0\x12\n\n\x06Hermes\x10\x01\
+    \rR\x07version\x12\x10\n\x03cid\x18\x02\x20\x02(\rR\x03cid\"N\n\x08AckOr\
+    Val\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\x12\x14\n\x05epoch\x18\
+    \x02\x20\x02(\x04R\x05epoch\x12\x1a\n\x02ts\x18\x03\x20\x02(\x0b2\n.Time\
+    stampR\x02ts\"_\n\x03Inv\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\
+    \x12\x14\n\x05epoch\x18\x02\x20\x02(\x04R\x05epoch\x12\x1a\n\x02ts\x18\
+    \x03\x20\x02(\x0b2\n.TimestampR\x02ts\x12\x14\n\x05value\x18\x05\x20\x02\
+    (\x0cR\x05value\"\xcb\x01\n\x0cPaxosMessage\x12+\n\x04type\x18\x01\x20\
+    \x02(\x0e2\x17.PaxosMessage.PaxosTypeR\x04type\x12\x18\n\x05value\x18\
+    \x02\x20\x03(\rR\x05valueB\x02\x10\x01\x12\x1b\n\tsender_id\x18\x03\x20\
+    \x02(\rR\x08senderId\x12\x19\n\x08epoch_id\x18\x04\x20\x02(\x04R\x07epoc\
+    hId\"<\n\tPaxosType\x12\x07\n\x03P1a\x10\0\x12\x07\n\x03P1b\x10\x01\x12\
+    \x07\n\x03P2a\x10\x02\x12\x07\n\x03P2b\x10\x03\x12\x0b\n\x07Leasing\x10\
+    \x04\"\xc5\x01\n\rHermesMessage\x12-\n\x04type\x18\x01\x20\x02(\x0e2\x19\
+    .HermesMessage.HermesTypeR\x04type\x12\x16\n\x03inv\x18\x02\x20\x01(\x0b\
+    2\x04.InvR\x03inv\x12'\n\nack_or_val\x18\x03\x20\x01(\x0b2\t.AckOrValR\
+    \x08ackOrVal\x12\x1b\n\tsender_id\x18\x04\x20\x02(\rR\x08senderId\"'\n\n\
+    HermesType\x12\x07\n\x03Inv\x10\0\x12\x07\n\x03Val\x10\x01\x12\x07\n\x03\
+    Ack\x10\x02\"\xa0\x01\n\x0bPeerMessage\x12%\n\x04type\x18\x01\x20\x02(\
+    \x0e2\x11.PeerMessage.TypeR\x04type\x12&\n\x06hermes\x18\x04\x20\x01(\
+    \x0b2\x0e.HermesMessageR\x06hermes\x12#\n\x05paxos\x18\x05\x20\x01(\x0b2\
+    \r.PaxosMessageR\x05paxos\"\x1d\n\x04Type\x12\t\n\x05Paxos\x10\0\x12\n\n\
+    \x06Hermes\x10\x01\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

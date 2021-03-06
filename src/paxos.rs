@@ -27,7 +27,8 @@ enum State {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaxosState {
     self_id: Member,
-    epoch_id: u64,
+    current_epoch_id: u64,
+    next_epoch_id: u64,
     // configured membership
     original_membership: HashSet<Member>,
     // voted membership
@@ -42,7 +43,8 @@ impl PaxosState {
     pub fn new(config: &Config) -> Self {
         PaxosState {
             self_id: Member(config.id as u32),
-            epoch_id: 0,
+            current_epoch_id: 0,
+            next_epoch_id: 1,
             original_membership: config.peers.iter().map(|p| Member(p.id as u32)).collect(),
             membership: HashSet::new(),
             local_membership: config.peers.iter().map(|p| Member(p.id as u32)).collect(),
@@ -79,13 +81,13 @@ pub enum Content {
 }
 
 impl PaxosState {
-    fn is_leader(&self) -> bool {
-        self.epoch_id % (self.original_membership.len() as u64 + 1) == (self.self_id.0 as u64 - 1)
+    fn is_leader(&self, epoch_id: u64) -> bool {
+        epoch_id % (self.original_membership.len() as u64 + 1) == (self.self_id.0 as u64 - 1)
     }
 
     fn go_to_epoch(&mut self, epoch: u64) {
-        self.epoch_id = epoch;
-        if self.is_leader() {
+        self.next_epoch_id = epoch;
+        if self.is_leader(self.next_epoch_id) {
             let mut map = HashMap::new();
             map.insert(self.self_id, self.wanted_nodes());
             self.state = State::LeaderPreVote(map);
@@ -96,14 +98,14 @@ impl PaxosState {
     }
 
     pub fn next_epoch(&mut self) -> Vec<HMessage> {
-        self.go_to_epoch(self.epoch_id + 1);
-        if self.is_leader() {
+        self.go_to_epoch(self.current_epoch_id + 1);
+        if self.is_leader(self.next_epoch_id) {
             let mut out = vec![];
             for dest in &self.original_membership {
                 out.push(HMessage::Paxos(
                     *dest,
                     PaxosMessage {
-                        epoch_id: self.epoch_id,
+                        epoch_id: self.next_epoch_id,
                         sender: self.self_id,
                         content: Content::P1a,
                     },
@@ -118,13 +120,13 @@ impl PaxosState {
     pub fn run(&mut self, msg: PaxosMessage) -> Vec<HMessage> {
         info!("paxos message: {:?}", msg);
 
-        match msg.epoch_id.cmp(&self.epoch_id) {
+        match msg.epoch_id.cmp(&self.next_epoch_id) {
             Ordering::Less => return vec![],
             Ordering::Equal => {}
             Ordering::Greater => self.go_to_epoch(msg.epoch_id),
         }
         let mut out = vec![];
-        if self.is_leader() {
+        if self.is_leader(self.next_epoch_id) {
             let nodes = self.nodes();
             match self.state {
                 State::LeaderPreVote(ref mut rcvs) => {
@@ -149,7 +151,7 @@ impl PaxosState {
                             out.push(HMessage::Paxos(
                                 *dest,
                                 PaxosMessage {
-                                    epoch_id: self.epoch_id,
+                                    epoch_id: self.next_epoch_id,
                                     sender: self.self_id,
                                     content: Content::P2a(intersect.clone()),
                                 },
@@ -167,12 +169,13 @@ impl PaxosState {
                         self.membership = chosen.clone();
                         self.local_membership = chosen.clone();
                         self.since = Instant::now();
+                        self.current_epoch_id = self.next_epoch_id;
                         self.state = State::Leasing;
                         for dest in &self.original_membership {
                             out.push(HMessage::Paxos(
                                 *dest,
                                 PaxosMessage {
-                                    epoch_id: self.epoch_id,
+                                    epoch_id: self.current_epoch_id,
                                     sender: self.self_id,
                                     content: Content::Leasing(self.membership.clone()),
                                 },
@@ -210,6 +213,8 @@ impl PaxosState {
                     info!("follower transitions to leasing {:?}", voted);
                     self.membership = voted.clone();
                     self.local_membership = voted;
+                    self.current_epoch_id = msg.epoch_id;
+                    self.next_epoch_id = msg.epoch_id;
                     self.state = State::Leasing;
                     self.since = Instant::now();
                 }
@@ -254,6 +259,10 @@ impl PaxosState {
             LeaseState::Expired
         }
     }
+
+    pub fn current_epoch(&self) -> u64 {
+        self.current_epoch_id
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -274,25 +283,20 @@ mod test {
 
     #[test]
     fn leader_of_current_epoch_id_is_deterministic_with_a_modulo_on_membership_size() {
-        let mut state = PaxosState {
+        let state = PaxosState {
             self_id: Member(1),
-            epoch_id: 0,
+            current_epoch_id: 0,
+            next_epoch_id: 1,
             original_membership: HashSet::from_iter(vec![Member(2), Member(3)]),
             membership: HashSet::new(),
             local_membership: HashSet::new(),
             state: State::Leasing,
             since: Instant::now(),
         };
-        assert!(state.is_leader());
-
-        state.epoch_id = 1;
-        assert!(!state.is_leader());
-
-        state.epoch_id = 2;
-        assert!(!state.is_leader());
-
-        state.epoch_id = 3;
-        assert!(state.is_leader());
+        assert!(state.is_leader(0));
+        assert!(!state.is_leader(1));
+        assert!(!state.is_leader(2));
+        assert!(state.is_leader(3));
     }
 
     #[test]
