@@ -276,27 +276,19 @@ pub enum LeaseState {
 mod test {
     use std::collections::HashSet;
     use std::iter::FromIterator;
-    use std::time::Instant;
 
-    use crate::paxos::{PaxosState, State};
+    use crate::paxos::PaxosState;
     use crate::state::Member;
+    use olympus::config::Config;
 
     #[test]
     fn leader_of_current_epoch_id_is_deterministic_with_a_modulo_on_membership_size() {
-        let state = PaxosState {
-            self_id: Member(1),
-            current_epoch_id: 0,
-            next_epoch_id: 1,
-            original_membership: HashSet::from_iter(vec![Member(2), Member(3)]),
-            membership: HashSet::new(),
-            local_membership: HashSet::new(),
-            state: State::Leasing,
-            since: Instant::now(),
-        };
+        let state = PaxosState::new(&Config::test_setup(1, vec![2, 3]));
         assert!(state.is_leader(0));
         assert!(!state.is_leader(1));
         assert!(!state.is_leader(2));
         assert!(state.is_leader(3));
+        assert!(state.is_leader(123));
     }
 
     #[test]

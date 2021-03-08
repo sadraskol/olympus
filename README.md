@@ -11,7 +11,7 @@ There's a lot remaining to work on:
 
 - The write replay feature
 - The Read-Modify-Write protocol
-- Leases based on Paxos
+- Leases based on Paxos (partially done)
 - Various optimizations, starting with RDMA
 
 Also, tests could go even further in order to verify the implementation
