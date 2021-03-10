@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::AtomicU32;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use log::{debug, error, info, LevelFilter};
@@ -17,7 +17,7 @@ use olympus::config::{cfg, Config};
 use olympus::proto::hermes::{PeerMessage, PeerMessage_Type};
 use olympus::proto::queries::Commands;
 
-use crate::hermes::{Answer, ClientId, Hermes, HMessage};
+use crate::hermes::{Answer, ClientId, HMessage, Hermes};
 use crate::paxos::LeaseState;
 use crate::proto_ser::{Proto, ToPeerMessage};
 use crate::state::Member;
@@ -162,9 +162,11 @@ async fn hermes_listener(shared_state: SharedState) -> JoinHandle<()> {
                     Action::Send(membership_messages) => {
                         for message in membership_messages {
                             if let HMessage::Paxos(member, msg) = message {
-                                let shared_state_for_request = shared_state_for_membership_loop.clone();
+                                let shared_state_for_request =
+                                    shared_state_for_membership_loop.clone();
                                 tokio::spawn(async move {
-                                    send_message(shared_state_for_request, member, msg.clone()).await;
+                                    send_message(shared_state_for_request, member, msg.clone())
+                                        .await;
                                 });
                             }
                         }
@@ -210,13 +212,15 @@ async fn peer_socket_handler(state: SharedState, mut stream: TcpStream) -> std::
                 let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
                     send_message(shared_state_for_request, member, msg.clone()).await;
-                }).await?;
+                })
+                .await?;
             }
             HMessage::Paxos(member, msg) => {
                 let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
                     send_message(shared_state_for_request, member, msg.clone()).await;
-                }).await?;
+                })
+                .await?;
             }
             HMessage::Client(_, _) => {
                 panic!("client message in return to a hermes run??");
@@ -286,13 +290,15 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
                 let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
                     send_message(shared_state_for_request, member, msg.clone()).await;
-                }).await?;
+                })
+                .await?;
             }
             HMessage::Paxos(member, msg) => {
                 let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
                     send_message(shared_state_for_request, member, msg.clone()).await;
-                }).await?;
+                })
+                .await?;
             }
         }
     }
@@ -320,7 +326,11 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
     Ok(())
 }
 
-async fn send_message<M: ToPeerMessage + Debug + Clone>(shared_state: SharedState, member: Member, msg: M) {
+async fn send_message<M: ToPeerMessage + Debug + Clone>(
+    shared_state: SharedState,
+    member: Member,
+    msg: M,
+) {
     let self_id = shared_state.cfg.id as u32;
     let peer_addr = shared_state.peers.addr_by(&member);
     match send_sync_message(&peer_addr, self_id, msg.clone()).await {

@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 use std::fmt::{Debug, Error, Formatter};
+use std::time::{Duration, Instant};
 
-use crate::hermes::ClientId;
+use crate::hermes::{ClientId, Clock};
+
+const INVALIDATE_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Key(pub Vec<u8>);
@@ -31,7 +34,8 @@ pub struct Member(pub u32);
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum State {
     Valid,
-    Inv,
+    // value is invalidated with a instant to replay later
+    Inv(Instant),
     Write(
         // client asking for write
         ClientId,
@@ -43,7 +47,14 @@ enum State {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReadResult {
     Pending,
+    ReplayWrite(Timestamp, Value),
     Value(Value),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ValidateResult {
+    Value(Value),
+    UnlockWrite(ClientId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,20 +78,26 @@ pub struct MachineValue {
 }
 
 impl MachineValue {
-    pub fn invalid_value(ts: Timestamp, value: Value) -> Self {
+    pub fn invalid_value(instant: Instant, ts: Timestamp, value: Value) -> Self {
         MachineValue {
             value,
-            state: State::Inv,
+            state: State::Inv(instant),
             timestamp: ts,
         }
     }
 
-    // TODO replay the write if invalidated since longer then the mlt (timeout)
-    pub fn read(&self) -> ReadResult {
-        if self.state == State::Valid {
-            ReadResult::Value(self.value.clone())
-        } else {
-            ReadResult::Pending
+    pub fn read(&mut self, clock: &Clock, client: ClientId) -> ReadResult {
+        match self.state {
+            State::Valid => ReadResult::Value(self.value.clone()),
+            State::Inv(since) => {
+                if clock.elapsed(since) > INVALIDATE_TIMEOUT {
+                    self.state = State::Write(client, HashSet::new());
+                    ReadResult::ReplayWrite(self.timestamp, self.value.clone())
+                } else {
+                    ReadResult::Pending
+                }
+            }
+            State::Write(_, _) => ReadResult::Pending,
         }
     }
 
@@ -125,19 +142,24 @@ impl MachineValue {
         }
     }
 
-    pub fn validate(&mut self, ts: Timestamp) -> ReadResult {
-        if self.state == State::Inv && self.timestamp == ts {
-            self.state = State::Valid;
-            self.timestamp = ts;
+    pub fn validate(&mut self, ts: Timestamp) -> ValidateResult {
+        match self.state {
+            State::Valid => ValidateResult::Value(self.value.clone()),
+            State::Inv(_) => {
+                if self.timestamp == ts {
+                    self.state = State::Valid;
+                    self.timestamp = ts;
+                }
+                ValidateResult::Value(self.value.clone())
+            }
+            State::Write(ref client, _) => ValidateResult::UnlockWrite(client.clone()),
         }
-
-        self.read()
     }
 
-    pub fn invalid(&mut self, ts: Timestamp, value: Value) -> InvalidResult {
+    pub fn invalid(&mut self, instant: Instant, ts: Timestamp, value: Value) -> InvalidResult {
         if ts > self.timestamp {
             let previous_state = self.state.clone();
-            self.state = State::Inv;
+            self.state = State::Inv(instant);
             self.timestamp = ts;
             self.value = value;
             match previous_state {
@@ -173,41 +195,70 @@ impl Timestamp {
 #[cfg(test)]
 mod test_reads {
     use std::collections::HashSet;
+    use std::ops::Sub;
+    use std::time::{Duration, Instant};
 
+    use crate::hermes::Clock;
     use crate::state::{MachineValue, ReadResult, State, Timestamp, Value};
     use crate::ClientId;
 
     #[test]
     fn reading_a_valid_value_works() {
-        let state = MachineValue {
+        let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
             state: State::Valid,
             timestamp: Timestamp::new(0, 0),
         };
 
-        assert_eq!(state.read(), ReadResult::Value(Value(vec![1, 2, 3])));
+        assert_eq!(
+            state.read(&Clock::System, ClientId(1)),
+            ReadResult::Value(Value(vec![1, 2, 3]))
+        );
     }
 
     #[test]
     fn hermes_reading_a_invalid_value_is_postponed() {
-        let state = MachineValue {
+        let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Inv,
+            state: State::Inv(Instant::now()),
             timestamp: Timestamp::new(0, 0),
         };
 
-        assert_eq!(state.read(), ReadResult::Pending);
+        assert_eq!(state.read(&Clock::System, ClientId(1)), ReadResult::Pending);
     }
 
     #[test]
     fn hermes_reading_a_write_value_is_postponed() {
-        let state = MachineValue {
+        let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
             state: State::Write(ClientId(1), HashSet::new()),
             timestamp: Timestamp::new(0, 0),
         };
 
-        assert_eq!(state.read(), ReadResult::Pending);
+        assert_eq!(state.read(&Clock::System, ClientId(1)), ReadResult::Pending);
+    }
+
+    #[test]
+    fn reads_on_old_inv_triggers_write_replay() {
+        let old_instant = Instant::now().sub(Duration::from_secs(1232));
+        let mut state = MachineValue {
+            value: Value(vec![1, 2, 3]),
+            state: State::Inv(old_instant),
+            timestamp: Timestamp::new(0, 0),
+        };
+
+        assert_eq!(
+            state.read(&Clock::System, ClientId(1)),
+            ReadResult::ReplayWrite(Timestamp::new(0, 0), Value(vec![1, 2, 3]))
+        );
+        assert_eq!(
+            state,
+            MachineValue {
+                value: Value(vec![1, 2, 3]),
+                state: State::Write(ClientId(1), HashSet::new()),
+                timestamp: Timestamp::new(0, 0),
+            }
+        );
     }
 }
 
@@ -215,6 +266,7 @@ mod test_reads {
 mod test_coordinator_writes {
     use std::collections::HashSet;
     use std::iter::FromIterator;
+    use std::time::Instant;
 
     use crate::state::{MachineValue, Member, State, Timestamp, Value, WriteResult};
     use crate::ClientId;
@@ -284,7 +336,7 @@ mod test_coordinator_writes {
     fn write_on_invalid_key_is_canceled() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Inv,
+            state: State::Inv(Instant::now()),
             timestamp: Timestamp::new(0, 0),
         };
         let expected = state.clone();
@@ -317,6 +369,7 @@ mod invalid_state {
 
     use std::collections::HashSet;
     use std::iter::FromIterator;
+    use std::time::Instant;
 
     use crate::state::{InvalidResult, MachineValue, Member, State, Timestamp, Value};
     use crate::ClientId;
@@ -330,7 +383,7 @@ mod invalid_state {
         };
         let expected = state.clone();
 
-        let res = state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        let res = state.invalid(Instant::now(), Timestamp::new(1, 1), Value(vec![3, 2, 1]));
         assert_eq!(res, InvalidResult::Discarded);
         assert_eq!(state, expected);
     }
@@ -342,13 +395,14 @@ mod invalid_state {
             state: State::Write(ClientId(1), HashSet::from_iter(vec![Member(1), Member(3)])),
             timestamp: Timestamp::new(1, 1),
         };
-        let res = state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        let now = Instant::now();
+        let res = state.invalid(now.clone(), Timestamp::new(100, 100), Value(vec![3, 2, 1]));
         assert_eq!(res, InvalidResult::WriteCancelled(ClientId(1)));
         assert_eq!(
             state,
             MachineValue {
                 value: Value(vec![3, 2, 1]),
-                state: State::Inv,
+                state: State::Inv(now),
                 timestamp: Timestamp::new(100, 100),
             }
         );
@@ -357,6 +411,8 @@ mod invalid_state {
 
 #[cfg(test)]
 mod test_follower_write {
+    use std::time::Instant;
+
     use crate::state::{InvalidResult, MachineValue, State, Timestamp, Value};
 
     #[test]
@@ -367,13 +423,14 @@ mod test_follower_write {
             timestamp: Timestamp::new(0, 0),
         };
 
-        let res = state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        let now = Instant::now();
+        let res = state.invalid(now.clone(), Timestamp::new(100, 100), Value(vec![3, 2, 1]));
         assert_eq!(res, InvalidResult::Accepted);
         assert_eq!(
             state,
             MachineValue {
                 value: Value(vec![3, 2, 1]),
-                state: State::Inv,
+                state: State::Inv(now),
                 timestamp: Timestamp::new(100, 100),
             }
         );
@@ -388,7 +445,8 @@ mod test_follower_write {
         };
         let expected = state.clone();
 
-        let res = state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        let now = Instant::now();
+        let res = state.invalid(now, Timestamp::new(1, 1), Value(vec![3, 2, 1]));
         assert_eq!(res, InvalidResult::Discarded);
         assert_eq!(state, expected);
     }
@@ -397,12 +455,12 @@ mod test_follower_write {
     fn invalidating_an_invalidated_value_fails_if_in_the_past() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Inv,
+            state: State::Inv(Instant::now()),
             timestamp: Timestamp::new(100, 100),
         };
         let expected = state.clone();
 
-        let res = state.invalid(Timestamp::new(1, 1), Value(vec![3, 2, 1]));
+        let res = state.invalid(Instant::now(), Timestamp::new(1, 1), Value(vec![3, 2, 1]));
         assert_eq!(res, InvalidResult::Discarded);
         assert_eq!(state, expected);
     }
@@ -411,17 +469,18 @@ mod test_follower_write {
     fn invalidating_an_invalidated_value_with_above_timestamp_overrides_the_value() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Inv,
+            state: State::Inv(Instant::now()),
             timestamp: Timestamp::new(1, 1),
         };
 
-        let res = state.invalid(Timestamp::new(100, 100), Value(vec![3, 2, 1]));
+        let now = Instant::now();
+        let res = state.invalid(now.clone(), Timestamp::new(100, 100), Value(vec![3, 2, 1]));
         assert_eq!(res, InvalidResult::Accepted);
         assert_eq!(
             state,
             MachineValue {
                 value: Value(vec![3, 2, 1]),
-                state: State::Inv,
+                state: State::Inv(now),
                 timestamp: Timestamp::new(100, 100),
             }
         );
@@ -431,7 +490,7 @@ mod test_follower_write {
     fn validating_an_invalidated_value_confirms_the_write() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Inv,
+            state: State::Inv(Instant::now()),
             timestamp: Timestamp::new(100, 100),
         };
 
@@ -450,7 +509,7 @@ mod test_follower_write {
     fn validating_an_invalidated_value_without_same_timestamp_is_ignored() {
         let mut state = MachineValue {
             value: Value(vec![1, 2, 3]),
-            state: State::Inv,
+            state: State::Inv(Instant::now()),
             timestamp: Timestamp::new(0, 0),
         };
         let expected = state.clone();

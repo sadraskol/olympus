@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 use log::{debug, info};
 
@@ -7,8 +8,12 @@ use olympus::proto::queries::{Commands, Commands_CommandType};
 
 use crate::paxos::{LeaseState, PaxosMessage, PaxosState};
 use crate::state::{
-    InvalidResult, Key, MachineValue, Member, ReadResult, Timestamp, Value, WriteResult,
+    InvalidResult, Key, MachineValue, Member, ReadResult, Timestamp, ValidateResult, Value,
+    WriteResult,
 };
+
+#[cfg(test)]
+use std::ops::Add;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum HermesMessage {
@@ -83,7 +88,42 @@ pub enum HMessage {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Clock {
+    #[cfg(test)]
+    Controlled(Instant),
+    System,
+}
+
+impl Clock {
+    pub fn now(&self) -> Instant {
+        match self {
+            #[cfg(test)]
+            Clock::Controlled(now) => *now,
+            Clock::System => Instant::now(),
+        }
+    }
+
+    pub fn elapsed(&self, since: Instant) -> Duration {
+        match self {
+            #[cfg(test)]
+            Clock::Controlled(now) => *now - since,
+            Clock::System => since.elapsed(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn add(&mut self, duration: Duration) {
+        match self {
+            #[cfg(test)]
+            Clock::Controlled(ref mut now) => *now = now.add(duration),
+            Clock::System => panic!("cannot modify system clock"),
+        };
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Hermes {
+    internal_clock: Clock,
     keys: HashMap<Key, MachineValue>,
     // optimisation not to traverse every values in the k/v hashmap
     keys_expecting_quorum: HashSet<Key>,
@@ -96,6 +136,7 @@ pub struct Hermes {
 impl Hermes {
     pub fn new(config: &Config) -> Self {
         Hermes {
+            internal_clock: Clock::System,
             keys: HashMap::new(),
             keys_expecting_quorum: HashSet::new(),
             ts: Timestamp::new(0, config.id as u32),
@@ -105,8 +146,13 @@ impl Hermes {
         }
     }
 
+    #[cfg(test)]
+    pub fn force_clock(&mut self, instant: Instant) {
+        self.internal_clock = Clock::Controlled(instant);
+    }
+
     pub fn start(&mut self) -> Vec<HMessage> {
-        self.membership.next_epoch()
+        self.membership.next_epoch(&self.internal_clock)
     }
 
     pub fn run(&mut self, message: HMessage) -> Vec<HMessage> {
@@ -129,11 +175,12 @@ impl Hermes {
                                 "invalidate epoch_id: {}, key: {:?}, value: {:?}, ts: {:?}",
                                 epoch_id, key, value, ts
                             );
+                            // TODO if ts of message is older, do not increment!
                             self.ts.increment_to(&ts);
 
                             if let Some(machine) = self.keys.get_mut(&key) {
                                 if let InvalidResult::WriteCancelled(client) =
-                                    machine.invalid(ts, value)
+                                    machine.invalid(self.internal_clock.now(), ts, value)
                                 {
                                     output.push(HMessage::Answer(
                                         client,
@@ -141,8 +188,14 @@ impl Hermes {
                                     ));
                                 }
                             } else {
-                                self.keys
-                                    .insert(key.clone(), MachineValue::invalid_value(ts, value));
+                                self.keys.insert(
+                                    key.clone(),
+                                    MachineValue::invalid_value(
+                                        self.internal_clock.now(),
+                                        ts,
+                                        value,
+                                    ),
+                                );
                             }
                             output.push(HMessage::Sync(
                                 member,
@@ -182,16 +235,24 @@ impl Hermes {
                             );
 
                             if let Some(machine) = self.keys.get_mut(&key) {
-                                if let ReadResult::Value(value) = machine.validate(ts) {
-                                    for client_waiting in
-                                        self.pending_reads.get(&key).unwrap_or(&vec![])
-                                    {
-                                        if let HMessage::Client(client_id, _) = client_waiting {
-                                            output.push(HMessage::Answer(
-                                                client_id.clone(),
-                                                Answer::Read(Some(value.clone())),
-                                            ));
+                                match machine.validate(ts) {
+                                    ValidateResult::Value(value) => {
+                                        for client_waiting in
+                                            self.pending_reads.get(&key).unwrap_or(&vec![])
+                                        {
+                                            if let HMessage::Client(client_id, _) = client_waiting {
+                                                output.push(HMessage::Answer(
+                                                    client_id.clone(),
+                                                    Answer::Read(Some(value.clone())),
+                                                ));
+                                            }
                                         }
+                                    }
+                                    ValidateResult::UnlockWrite(client_id) => {
+                                        output.push(HMessage::Answer(
+                                            client_id,
+                                            Answer::Write(WriteResult::Accepted),
+                                        ));
                                     }
                                 }
                             }
@@ -203,7 +264,7 @@ impl Hermes {
                 panic!("answer {:?} for {:?} in inbox!", d, c);
             }
             HMessage::Paxos(_m, msg) => {
-                output = self.membership.run(msg);
+                output = self.membership.run(&self.internal_clock, msg);
 
                 for key in &self.keys_expecting_quorum.clone() {
                     if let Some(machine) = self.keys.get_mut(key) {
@@ -241,14 +302,28 @@ impl Hermes {
 
                 info!("reading key: {:?}", key);
 
-                if let Some(value) = self.keys.get(&key) {
-                    match value.read() {
+                if let Some(value) = self.keys.get_mut(&key) {
+                    match value.read(&self.internal_clock, client_id.clone()) {
                         ReadResult::Pending => {
                             if let Some(vec) = self.pending_reads.get_mut(&key) {
                                 vec.push(HMessage::Client(client_id, command));
                             } else {
                                 self.pending_reads
                                     .insert(key, vec![HMessage::Client(client_id, command)]);
+                            }
+                        }
+                        ReadResult::ReplayWrite(ts, value) => {
+                            self.keys_expecting_quorum.insert(key.clone());
+                            for member in &self.membership.members() {
+                                output.push(HMessage::Sync(
+                                    *member,
+                                    HermesMessage::inv(
+                                        self.membership.current_epoch(),
+                                        &key,
+                                        &ts,
+                                        &value,
+                                    ),
+                                ))
                             }
                         }
                         ReadResult::Value(value) => {
@@ -334,6 +409,7 @@ mod hermes_test {
     use crate::hermes::{Answer, ClientId, HMessage, Hermes, HermesMessage};
     use crate::paxos::{Content, PaxosMessage};
     use crate::state::{Key, Member, Timestamp, Value, WriteResult};
+    use std::time::{Duration, Instant};
 
     fn write_command(key: &Key, value: &Value) -> Commands {
         let mut write = Commands::new();
@@ -446,6 +522,7 @@ mod hermes_test {
     // setup Hermes without the need of running the initial paxos membership agreement
     fn setup_default_running_hermes() -> Hermes {
         let mut hermes = Hermes::new(&Config::test_setup(2, vec![1, 3]));
+        hermes.force_clock(Instant::now());
         let expected_membership = HashSet::from_iter(vec![Member(1), Member(2), Member(3)]);
         hermes.start();
         hermes.run(HMessage::Paxos(
@@ -657,5 +734,75 @@ mod hermes_test {
                 HMessage::Sync(Member(1), HermesMessage::val(123, &key, &expected_ts))
             ],
         );
+    }
+
+    #[test]
+    fn replay_write_behaves_correctly_when_a_node_is_removed() {
+        let mut hermes = setup_default_running_hermes();
+
+        let key = Key(vec![35, 36, 37]);
+        let value = Value(vec![1, 2, 3]);
+        let timestamp = Timestamp::new(1, 3);
+
+        hermes.run(HMessage::Sync(
+            Member(3),
+            HermesMessage::inv(1, &key, &timestamp, &value),
+        ));
+        hermes.internal_clock.add(Duration::from_secs(11));
+
+        assert_msg_eq!(
+            hermes.run(HMessage::Client(ClientId(3), read_command(&key))),
+            vec![
+                HMessage::Sync(Member(1), HermesMessage::inv(1, &key, &timestamp, &value)),
+                HMessage::Sync(Member(3), HermesMessage::inv(1, &key, &timestamp, &value)),
+            ],
+        );
+        hermes.run(HMessage::Sync(
+            Member(1),
+            HermesMessage::ack(1, &key, &timestamp),
+        ));
+        assert_msg_eq!(
+            hermes.run(HMessage::Sync(
+                Member(3),
+                HermesMessage::ack(1, &key, &timestamp)
+            )),
+            vec![
+                HMessage::Answer(ClientId(3), Answer::Write(WriteResult::Accepted)),
+                HMessage::Sync(Member(1), HermesMessage::val(1, &key, &timestamp)),
+                HMessage::Sync(Member(3), HermesMessage::val(1, &key, &timestamp)),
+            ],
+        )
+    }
+
+    #[test]
+    fn when_peer_writes_but_receives_the_write_replay_of_another_member_it_accepts() {
+        let mut hermes = setup_default_running_hermes();
+
+        let key = Key(vec![35, 36, 37]);
+        let value = Value(vec![1, 2, 3]);
+        let timestamp = Timestamp::new(1, 2);
+
+        hermes.run(HMessage::Client(ClientId(3), write_command(&key, &value)));
+
+        assert_msg_eq!(
+            hermes.run(HMessage::Sync(
+                Member(3),
+                HermesMessage::inv(1, &key, &timestamp, &value)
+            )),
+            vec![HMessage::Sync(
+                Member(3),
+                HermesMessage::ack(1, &key, &timestamp)
+            )],
+        );
+        assert_msg_eq!(
+            hermes.run(HMessage::Sync(
+                Member(3),
+                HermesMessage::val(1, &key, &timestamp)
+            )),
+            vec![HMessage::Answer(
+                ClientId(3),
+                Answer::Write(WriteResult::Accepted)
+            )],
+        )
     }
 }

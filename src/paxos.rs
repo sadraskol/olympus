@@ -8,7 +8,7 @@ use tokio::time::Duration;
 
 use olympus::config::Config;
 
-use crate::hermes::HMessage;
+use crate::hermes::{Clock, HMessage};
 use crate::state::Member;
 
 const LEASE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -85,18 +85,18 @@ impl PaxosState {
         epoch_id % (self.original_membership.len() as u64 + 1) == (self.self_id.0 as u64 - 1)
     }
 
-    fn go_to_epoch(&mut self, epoch: u64) {
+    fn go_to_epoch(&mut self, clock: &Clock, epoch: u64) {
         self.next_epoch_id = epoch;
         if self.is_leader(self.next_epoch_id) {
             self.state = State::LeaderPreVote(HashMap::new());
         } else {
             self.state = State::Follower;
         }
-        self.since = Instant::now();
+        self.since = clock.now();
     }
 
-    pub fn next_epoch(&mut self) -> Vec<HMessage> {
-        self.go_to_epoch(self.current_epoch_id + 1);
+    pub fn next_epoch(&mut self, clock: &Clock) -> Vec<HMessage> {
+        self.go_to_epoch(clock, self.current_epoch_id + 1);
         if self.is_leader(self.next_epoch_id) {
             let mut out = vec![];
             for dest in &self.original_membership {
@@ -115,13 +115,13 @@ impl PaxosState {
         }
     }
 
-    pub fn run(&mut self, msg: PaxosMessage) -> Vec<HMessage> {
+    pub fn run(&mut self, clock: &Clock, msg: PaxosMessage) -> Vec<HMessage> {
         info!("paxos message: {:?}", msg);
 
         match msg.epoch_id.cmp(&self.next_epoch_id) {
             Ordering::Less => return vec![],
             Ordering::Equal => {}
-            Ordering::Greater => self.go_to_epoch(msg.epoch_id),
+            Ordering::Greater => self.go_to_epoch(clock, msg.epoch_id),
         }
         let mut out = vec![];
         if self.is_leader(self.next_epoch_id) {
@@ -159,7 +159,7 @@ impl PaxosState {
                     if Self::quorum(&nodes, voted.len()) {
                         info!("P2 to leasing phase with membership {:?}", chosen);
                         self.membership = chosen.clone();
-                        self.since = Instant::now();
+                        self.since = clock.now();
                         self.current_epoch_id = self.next_epoch_id;
                         self.state = State::Leasing;
                         for dest in &self.original_membership {
@@ -206,7 +206,7 @@ impl PaxosState {
                     self.current_epoch_id = msg.epoch_id;
                     self.next_epoch_id = msg.epoch_id;
                     self.state = State::Leasing;
-                    self.since = Instant::now();
+                    self.since = clock.now();
                 }
                 _ => {}
             }
@@ -221,7 +221,11 @@ impl PaxosState {
     }
 
     fn wanted_nodes(&self) -> HashSet<Member> {
-        let mut nodes: HashSet<Member> = self.original_membership.difference(&self.failing_nodes).copied().collect();
+        let mut nodes: HashSet<Member> = self
+            .original_membership
+            .difference(&self.failing_nodes)
+            .copied()
+            .collect();
         nodes.insert(self.self_id);
         nodes
     }
