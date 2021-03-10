@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicU32;
 use std::sync::{Arc, Condvar, Mutex};
+use std::sync::atomic::AtomicU32;
+use std::time::Duration;
 
-use log::{info, LevelFilter};
+use log::{debug, error, info, LevelFilter};
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Root};
 use protobuf::Message;
@@ -16,11 +17,10 @@ use olympus::config::{cfg, Config};
 use olympus::proto::hermes::{PeerMessage, PeerMessage_Type};
 use olympus::proto::queries::Commands;
 
-use crate::hermes::{Answer, ClientId, HMessage, Hermes};
+use crate::hermes::{Answer, ClientId, Hermes, HMessage};
 use crate::paxos::LeaseState;
 use crate::proto_ser::{Proto, ToPeerMessage};
 use crate::state::Member;
-use std::time::Duration;
 
 mod hermes;
 mod paxos;
@@ -116,7 +116,7 @@ async fn main() -> std::io::Result<()> {
 
     let config = log4rs::Config::builder()
         .appender(Appender::builder().build("file", Box::new(file)))
-        .build(Root::builder().appender("file").build(LevelFilter::Info))
+        .build(Root::builder().appender("file").build(LevelFilter::Debug))
         .unwrap();
 
     log4rs::init_config(config).unwrap();
@@ -143,11 +143,11 @@ async fn hermes_listener(shared_state: SharedState) -> JoinHandle<()> {
             .await
             .unwrap();
 
-        let membership_loop = shared_state.clone();
+        let shared_state_for_membership_loop = shared_state.clone();
         tokio::spawn(async move {
             loop {
                 let action = {
-                    let mut guard = membership_loop.hermes.lock().unwrap();
+                    let mut guard = shared_state_for_membership_loop.hermes.lock().unwrap();
                     match guard.lease_state() {
                         LeaseState::Expired => Action::Send(guard.start()),
                         LeaseState::Renewing(duration) => Action::Wait(duration),
@@ -162,11 +162,9 @@ async fn hermes_listener(shared_state: SharedState) -> JoinHandle<()> {
                     Action::Send(membership_messages) => {
                         for message in membership_messages {
                             if let HMessage::Paxos(member, msg) = message {
-                                let socket = membership_loop.peers.addr_by(&member);
-                                let self_id = membership_loop.cfg.id as u32;
-
+                                let shared_state_for_request = shared_state_for_membership_loop.clone();
                                 tokio::spawn(async move {
-                                    send_sync_message(&socket, self_id, msg).await.unwrap();
+                                    send_message(shared_state_for_request, member, msg.clone()).await;
                                 });
                             }
                         }
@@ -209,18 +207,16 @@ async fn peer_socket_handler(state: SharedState, mut stream: TcpStream) -> std::
     for message in messages {
         match message {
             HMessage::Sync(member, msg) => {
-                let socket = state.peers.addr_by(&member);
-                let self_id = state.cfg.id as u32;
+                let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
-                    send_sync_message(&socket, self_id, msg).await.unwrap();
-                });
+                    send_message(shared_state_for_request, member, msg.clone()).await;
+                }).await?;
             }
             HMessage::Paxos(member, msg) => {
-                let socket = state.peers.addr_by(&member);
-                let self_id = state.cfg.id as u32;
+                let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
-                    send_sync_message(&socket, self_id, msg).await.unwrap();
-                });
+                    send_message(shared_state_for_request, member, msg.clone()).await;
+                }).await?;
             }
             HMessage::Client(_, _) => {
                 panic!("client message in return to a hermes run??");
@@ -287,20 +283,16 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
                 maybe_response = Some(response);
             }
             HMessage::Sync(member, msg) => {
-                let socket = state.peers.addr_by(&member);
-                let self_id = state.cfg.id as u32;
+                let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
-                    send_sync_message(&socket, self_id, msg).await.unwrap();
-                })
-                .await?;
+                    send_message(shared_state_for_request, member, msg.clone()).await;
+                }).await?;
             }
             HMessage::Paxos(member, msg) => {
-                let socket = state.peers.addr_by(&member);
-                let self_id = state.cfg.id as u32;
+                let shared_state_for_request = state.clone();
                 tokio::spawn(async move {
-                    send_sync_message(&socket, self_id, msg).await.unwrap();
-                })
-                .await?;
+                    send_message(shared_state_for_request, member, msg.clone()).await;
+                }).await?;
             }
         }
     }
@@ -326,6 +318,19 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
     stream.write_all(&res).await?;
 
     Ok(())
+}
+
+async fn send_message<M: ToPeerMessage + Debug + Clone>(shared_state: SharedState, member: Member, msg: M) {
+    let self_id = shared_state.cfg.id as u32;
+    let peer_addr = shared_state.peers.addr_by(&member);
+    match send_sync_message(&peer_addr, self_id, msg.clone()).await {
+        Ok(_) => debug!("send_sync_message successful {:?}", msg),
+        Err(err) => {
+            error!("failing member {:?} with reason: {}", member, err);
+            let mut guard = shared_state.hermes.lock().unwrap();
+            guard.failing_member(member);
+        }
+    }
 }
 
 async fn send_sync_message<T: ToPeerMessage + Debug>(

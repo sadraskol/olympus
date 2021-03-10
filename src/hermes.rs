@@ -316,6 +316,10 @@ impl Hermes {
     pub fn lease_state(&self) -> LeaseState {
         self.membership.lease_state()
     }
+
+    pub fn failing_member(&mut self, member: Member) {
+        self.membership.failing_member(member);
+    }
 }
 
 #[cfg(test)]

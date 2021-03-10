@@ -21,3 +21,6 @@ log4rs = "1.0.0"
 
 [build-dependencies]
 protoc-rust = "2.18.1"
+
+[lib]
+doctest = false
