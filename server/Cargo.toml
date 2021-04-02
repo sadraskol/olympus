@@ -1,0 +1,26 @@
+[package]
+name = "olympus-server"
+version = "0.1.0"
+authors = ["Thomas Bracher <tbracher@netwo.com>"]
+edition = "2018"
+build = "src/build.rs"
+default-run = "olympus-server"
+
+[dependencies]
+tokio = { version = "1.1.0", features = ["full"] }
+protobuf = "2.18.1"
+crossbeam = "0.8.0"
+serde = { version = "1.0.115", features = ["derive"] }
+toml = "0.5.8"
+rand = "0.8.3"
+log = "0.4.14"
+log4rs = "1.0.0"
+client-interface = { path = "../client-interface" }
+
+[dev-dependencies]
+
+[build-dependencies]
+protoc-rust = "2.18.1"
+
+[lib]
+doctest = false

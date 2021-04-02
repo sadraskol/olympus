@@ -1,11 +1,10 @@
 use std::io::{stdin, stdout, Write};
 
-use protobuf::Message;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
-use olympus::proto::queries;
-use olympus::proto::queries::Answers;
+use client_interface::client;
+use client_interface::client::{write_to, read_from, Key, Value};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -53,23 +52,10 @@ async fn main() -> std::io::Result<()> {
 async fn read(client: &str, key: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(client).await?;
 
-    let mut read = queries::Read::new();
-    read.set_key(key.as_bytes().to_vec());
-    let mut command = queries::Commands::new();
-    command.set_read(read);
-    command.set_field_type(queries::Commands_CommandType::Read);
-
-    let buf = command.write_to_bytes()?;
-
-    stream.write_u64(buf.len() as u64).await?;
-    stream.write_all(&buf).await?;
+    let query = client::Query::read(Key(key.as_bytes().to_vec()));
+    write_to(&query, &mut stream).await?;
     stream.flush().await?;
-
-    let response_size = stream.read_u64().await?;
-    let mut buf = vec![0; response_size as usize];
-    stream.read_exact(&mut buf).await?;
-
-    let result = Answers::parse_from_bytes(&buf).unwrap();
+    let result: client::Answer = read_from(&mut stream).await?;
 
     println!("{:?}", result);
     Ok(())
@@ -78,24 +64,14 @@ async fn read(client: &str, key: &str) -> std::io::Result<()> {
 async fn write(client: &str, key: &str, value: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(client).await?;
 
-    let mut write = queries::Write::new();
-    write.set_key(key.as_bytes().to_vec());
-    write.set_value(value.as_bytes().to_vec());
-    let mut command = queries::Commands::new();
-    command.set_write(write);
-    command.set_field_type(queries::Commands_CommandType::Write);
-
-    let buf = command.write_to_bytes()?;
-
-    stream.write_u64(buf.len() as u64).await?;
-    stream.write_all(&buf).await?;
+    let query = client::Query::write(
+        Key(key.as_bytes().to_vec()),
+        Value(value.as_bytes().to_vec())
+    );
+    write_to(&query, &mut stream).await?;
     stream.flush().await?;
 
-    let response_size = stream.read_u64().await?;
-    let mut buf = vec![0; response_size as usize];
-    stream.read_exact(&mut buf).await?;
-
-    let result = Answers::parse_from_bytes(&buf).unwrap();
+    let result: client::Answer = read_from(&mut stream).await?;
 
     println!("{:?}", result);
     Ok(())

@@ -1,32 +1,11 @@
 use std::collections::HashSet;
-use std::fmt::{Debug, Error, Formatter};
+use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
 use crate::hermes::{ClientId, Clock};
+use client_interface::client::{Value, WriteResult};
 
 const INVALIDATE_TIMEOUT: Duration = Duration::from_secs(10);
-
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub struct Key(pub Vec<u8>);
-
-impl Debug for Key {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.debug_tuple("Key")
-            .field(&std::str::from_utf8(&self.0).unwrap())
-            .finish()
-    }
-}
-
-#[derive(Clone, Eq, PartialEq)]
-pub struct Value(pub Vec<u8>);
-
-impl Debug for Value {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.debug_tuple("Value")
-            .field(&std::str::from_utf8(&self.0).unwrap())
-            .finish()
-    }
-}
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Member(pub u32);
@@ -62,12 +41,6 @@ pub enum InvalidResult {
     Discarded,
     Accepted,
     WriteCancelled(ClientId),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum WriteResult {
-    Rejected,
-    Accepted,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

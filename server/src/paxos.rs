@@ -6,7 +6,7 @@ use std::time::Instant;
 use log::info;
 use tokio::time::Duration;
 
-use olympus::config::Config;
+use olympus_server::config::Config;
 
 use crate::hermes::{Clock, HMessage};
 use crate::state::Member;
@@ -26,7 +26,7 @@ enum State {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaxosState {
-    self_id: Member,
+    pub self_id: Member,
     current_epoch_id: u64,
     next_epoch_id: u64,
     // configured membership
@@ -75,7 +75,7 @@ impl PaxosState {
             membership: HashSet::new(),
             failing_nodes: HashSet::new(),
             state: State::Follower,
-            since: Instant::now().sub(Duration::from_secs(1_000_000)),
+            since: Instant::now().sub(Duration::from_secs(1_000)),
         }
     }
 }
@@ -275,7 +275,7 @@ mod test {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use olympus::config::Config;
+    use olympus_server::config::Config;
 
     use crate::paxos::PaxosState;
     use crate::state::Member;
