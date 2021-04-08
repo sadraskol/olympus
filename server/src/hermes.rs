@@ -3,13 +3,11 @@ use std::time::{Duration, Instant};
 
 use log::{debug, info};
 
-use olympus_server::config::Config;
-use client_interface::client::{Query, Answer, Key, Value, WriteResult};
+use crate::config::Config;
+use client_interface::client::{Answer, Key, Query, Value, WriteResult};
 
 use crate::paxos::{LeaseState, PaxosMessage, PaxosState};
-use crate::state::{
-    InvalidResult, MachineValue, Member, ReadResult, Timestamp, ValidateResult,
-};
+use crate::state::{InvalidResult, MachineValue, Member, ReadResult, Timestamp, ValidateResult};
 
 #[cfg(test)]
 use std::ops::Add;
@@ -41,7 +39,13 @@ pub enum HermesMessage {
 }
 
 impl HermesMessage {
-    pub fn inv(sender_id: u32, epoch_id: u64, key: &Key, timestamp: &Timestamp, value: &Value) -> Self {
+    pub fn inv(
+        sender_id: u32,
+        epoch_id: u64,
+        key: &Key,
+        timestamp: &Timestamp,
+        value: &Value,
+    ) -> Self {
         HermesMessage::Inv {
             sender_id,
             epoch_id,
@@ -77,7 +81,6 @@ impl HermesMessage {
         }
     }
 }
-
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClientId(pub u32);
@@ -162,9 +165,7 @@ impl Hermes {
         debug!("{:?}", self);
         let mut output = vec![];
         match message {
-            HMessage::Client(client_id, query) => {
-                output = self.client_query(client_id, query)
-            }
+            HMessage::Client(client_id, query) => output = self.client_query(client_id, query),
             HMessage::Sync(member, msg) => {
                 if msg.epoch_id() == self.membership.current_epoch() {
                     match msg {
@@ -203,7 +204,12 @@ impl Hermes {
                             }
                             output.push(HMessage::Sync(
                                 member,
-                                HermesMessage::ack(self.membership.self_id.0, self.membership.current_epoch(), &key, &ts),
+                                HermesMessage::ack(
+                                    self.membership.self_id.0,
+                                    self.membership.current_epoch(),
+                                    &key,
+                                    &ts,
+                                ),
                             ));
                         }
                         HermesMessage::Ack { key, .. } => {
@@ -233,7 +239,12 @@ impl Hermes {
                                 }
                             }
                         }
-                        HermesMessage::Val { sender_id: _, epoch_id, key, ts } => {
+                        HermesMessage::Val {
+                            sender_id: _,
+                            epoch_id,
+                            key,
+                            ts,
+                        } => {
                             info!(
                                 "validate epoch_id: {}, key: {:?}, ts: {:?}",
                                 epoch_id, key, ts
@@ -407,14 +418,14 @@ mod hermes_test {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use olympus_server::config::Config;
+    use crate::config::Config;
     use client_interface::client::{Query, WriteResult};
 
     use crate::hermes::{Answer, ClientId, HMessage, Hermes, HermesMessage};
     use crate::paxos::{Content, PaxosMessage};
     use crate::state::{Member, Timestamp};
-    use std::time::{Duration, Instant};
     use client_interface::client::{Key, Value};
+    use std::time::{Duration, Instant};
 
     fn msg_by_member(left: &HMessage, right: &HMessage) -> Ordering {
         match left {
@@ -531,10 +542,19 @@ mod hermes_test {
 
         let expected_ts = Timestamp::new(1, 2);
         assert_msg_eq!(
-            hermes.run(HMessage::Client(ClientId(1), Query::write(key.clone(), value.clone()))),
+            hermes.run(HMessage::Client(
+                ClientId(1),
+                Query::write(key.clone(), value.clone())
+            )),
             vec![
-                HMessage::Sync(Member(1), HermesMessage::inv(2, 1, &key, &expected_ts, &value)),
-                HMessage::Sync(Member(3), HermesMessage::inv(2, 1, &key, &expected_ts, &value)),
+                HMessage::Sync(
+                    Member(1),
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                ),
+                HMessage::Sync(
+                    Member(3),
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                ),
             ],
         );
         hermes.run(HMessage::Sync(
@@ -577,7 +597,10 @@ mod hermes_test {
             )],
         );
         assert_msg_eq!(
-            hermes.run(HMessage::Client(ClientId(1), Query::write(key.clone(), value.clone()))),
+            hermes.run(HMessage::Client(
+                ClientId(1),
+                Query::write(key.clone(), value.clone())
+            )),
             vec![HMessage::Answer(
                 ClientId(1),
                 Answer::Write(WriteResult::Rejected),
@@ -636,10 +659,19 @@ mod hermes_test {
 
         let expected_ts = Timestamp::new(2, 2);
         assert_msg_eq!(
-            hermes.run(HMessage::Client(ClientId(1), Query::write(key.clone(), value.clone()))),
+            hermes.run(HMessage::Client(
+                ClientId(1),
+                Query::write(key.clone(), value.clone())
+            )),
             vec![
-                HMessage::Sync(Member(1), HermesMessage::inv(2, 1, &key, &expected_ts, &value)),
-                HMessage::Sync(Member(3), HermesMessage::inv(2, 1, &key, &expected_ts, &value)),
+                HMessage::Sync(
+                    Member(1),
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                ),
+                HMessage::Sync(
+                    Member(3),
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                ),
             ],
         );
     }
@@ -654,7 +686,10 @@ mod hermes_test {
 
         let timestamp = Timestamp::new(1, 3);
 
-        hermes.run(HMessage::Client(ClientId(2), Query::write(key.clone(), value.clone())));
+        hermes.run(HMessage::Client(
+            ClientId(2),
+            Query::write(key.clone(), value.clone()),
+        ));
         assert_msg_eq!(
             hermes.run(HMessage::Sync(
                 Member(3),
@@ -679,7 +714,10 @@ mod hermes_test {
 
         let timestamp = Timestamp::new(1, 3);
 
-        hermes.run(HMessage::Client(ClientId(2), Query::write(key.clone(), value.clone())));
+        hermes.run(HMessage::Client(
+            ClientId(2),
+            Query::write(key.clone(), value.clone()),
+        ));
         hermes.run(HMessage::Sync(
             Member(3),
             HermesMessage::ack(3, 1, &key, &timestamp),
@@ -705,7 +743,10 @@ mod hermes_test {
         let value = Value(vec![1, 2, 3]);
         let expected_ts = Timestamp::new(1, 2);
 
-        hermes.run(HMessage::Client(ClientId(2), Query::write(key.clone(), value.clone())));
+        hermes.run(HMessage::Client(
+            ClientId(2),
+            Query::write(key.clone(), value.clone()),
+        ));
         hermes.run(HMessage::Sync(
             Member(1),
             HermesMessage::ack(1, 1, &key, &expected_ts),
@@ -732,15 +773,21 @@ mod hermes_test {
 
         hermes.run(HMessage::Sync(
             Member(3),
-            HermesMessage::inv(3,1, &key, &timestamp, &value),
+            HermesMessage::inv(3, 1, &key, &timestamp, &value),
         ));
         hermes.internal_clock.add(Duration::from_secs(11));
 
         assert_msg_eq!(
             hermes.run(HMessage::Client(ClientId(3), Query::read(key.clone()))),
             vec![
-                HMessage::Sync(Member(1), HermesMessage::inv(2, 1, &key, &timestamp, &value)),
-                HMessage::Sync(Member(3), HermesMessage::inv(2, 1, &key, &timestamp, &value)),
+                HMessage::Sync(
+                    Member(1),
+                    HermesMessage::inv(2, 1, &key, &timestamp, &value)
+                ),
+                HMessage::Sync(
+                    Member(3),
+                    HermesMessage::inv(2, 1, &key, &timestamp, &value)
+                ),
             ],
         );
         hermes.run(HMessage::Sync(
@@ -768,7 +815,10 @@ mod hermes_test {
         let value = Value(vec![1, 2, 3]);
         let timestamp = Timestamp::new(1, 2);
 
-        hermes.run(HMessage::Client(ClientId(3), Query::write(key.clone(), value.clone())));
+        hermes.run(HMessage::Client(
+            ClientId(3),
+            Query::write(key.clone(), value.clone()),
+        ));
 
         assert_msg_eq!(
             hermes.run(HMessage::Sync(

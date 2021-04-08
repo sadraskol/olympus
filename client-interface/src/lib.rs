@@ -1,2 +1,2 @@
-mod queries;
 pub mod client;
+mod queries;

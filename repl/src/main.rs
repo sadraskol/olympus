@@ -4,7 +4,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
 use client_interface::client;
-use client_interface::client::{write_to, read_from, Key, Value};
+use client_interface::client::{read_from, write_to, Key, Value};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -33,10 +33,16 @@ async fn main() -> std::io::Result<()> {
                     }
                 }
                 "r" => {
-                    read(&client_turn, split[1]).await?;
+                    match read(&client_turn, split[1]).await {
+                        Ok(_) => {}
+                        Err(err) => println!("{}", err),
+                    };
                 }
                 "w" => {
-                    write(&client_turn, split[1], split[2]).await?;
+                    match write(&client_turn, split[1], split[2]).await {
+                        Ok(_) => {}
+                        Err(err) => println!("{}", err),
+                    };
                 }
                 "q" => {
                     return Ok(());
@@ -53,7 +59,7 @@ async fn read(client: &str, key: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(client).await?;
 
     let query = client::Query::read(Key(key.as_bytes().to_vec()));
-    write_to(&query, &mut stream).await?;
+    write_to(&mut stream, &query).await?;
     stream.flush().await?;
     let result: client::Answer = read_from(&mut stream).await?;
 
@@ -66,9 +72,9 @@ async fn write(client: &str, key: &str, value: &str) -> std::io::Result<()> {
 
     let query = client::Query::write(
         Key(key.as_bytes().to_vec()),
-        Value(value.as_bytes().to_vec())
+        Value(value.as_bytes().to_vec()),
     );
-    write_to(&query, &mut stream).await?;
+    write_to(&mut stream, &query).await?;
     stream.flush().await?;
 
     let result: client::Answer = read_from(&mut stream).await?;

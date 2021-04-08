@@ -6,7 +6,7 @@ use std::time::Instant;
 use log::info;
 use tokio::time::Duration;
 
-use olympus_server::config::Config;
+use crate::config::Config;
 
 use crate::hermes::{Clock, HMessage};
 use crate::state::Member;
@@ -275,7 +275,7 @@ mod test {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use olympus_server::config::Config;
+    use crate::config::Config;
 
     use crate::paxos::PaxosState;
     use crate::state::Member;

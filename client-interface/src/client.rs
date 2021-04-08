@@ -1,28 +1,28 @@
+use crate::queries;
+use crate::queries::{Answers_AnswerType, Commands_CommandType, WriteAnswer_WriteType};
 use protobuf::Message;
 use std::fmt::{Debug, Formatter};
-use crate::queries;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 pub trait Proto<T: Message> {
     fn from_proto(msg: &T) -> Self;
     fn to_proto(&self) -> T;
 }
 
-
-pub async fn write_to<M: Message, W: AsyncWriteExt + Unpin, P: Proto<M>>(s: &P, w: &mut W) -> std::io::Result<()> {
+pub async fn write_to<M: Message, P: Proto<M>>(w: &mut TcpStream, s: &P) -> std::io::Result<()> {
     let buf = s.to_proto().write_to_bytes()?;
     w.write_u64(buf.len() as u64).await?;
     w.write_all(&buf).await?;
     Ok(())
 }
 
-pub async fn read_from<M: Message, R: AsyncReadExt + Unpin, P: Proto<M>>(r: &mut R) -> std::io::Result<P> {
+pub async fn read_from<M: Message, P: Proto<M>>(r: &mut TcpStream) -> std::io::Result<P> {
     let response_size = r.read_u64().await?;
     let mut buf = vec![0; response_size as usize];
     r.read_exact(&mut buf).await?;
 
     let msg = M::parse_from_bytes(&buf)?;
-
     Ok(P::from_proto(&msg))
 }
 
@@ -60,10 +60,21 @@ pub enum Answer {
     Write(WriteResult),
 }
 
-
 impl Proto<queries::Answers> for Answer {
-    fn from_proto(_msg: &queries::Answers) -> Self {
-        unimplemented!("Answers should only be read by the client")
+    fn from_proto(msg: &queries::Answers) -> Self {
+        match msg.get_field_type() {
+            Answers_AnswerType::Read => {
+                if msg.get_read().get_is_nil() {
+                    Answer::Read(None)
+                } else {
+                    Answer::Read(Some(Value(msg.get_read().get_value().to_vec())))
+                }
+            }
+            Answers_AnswerType::Write => match msg.get_write().get_code() {
+                WriteAnswer_WriteType::Ok => Answer::Write(WriteResult::Accepted),
+                WriteAnswer_WriteType::Refused => Answer::Write(WriteResult::Rejected),
+            },
+        }
     }
 
     fn to_proto(&self) -> queries::Answers {
@@ -108,8 +119,14 @@ pub enum Query {
 }
 
 impl Proto<queries::Commands> for Query {
-    fn from_proto(_msg: &queries::Commands) -> Self {
-        todo!()
+    fn from_proto(msg: &queries::Commands) -> Self {
+        match msg.get_field_type() {
+            Commands_CommandType::Read => Query::Read(Key(msg.get_read().get_key().to_vec())),
+            Commands_CommandType::Write => Query::Write(
+                Key(msg.get_write().get_key().to_vec()),
+                Value(msg.get_write().get_value().to_vec()),
+            ),
+        }
     }
 
     fn to_proto(&self) -> queries::Commands {

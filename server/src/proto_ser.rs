@@ -1,8 +1,8 @@
-use olympus_server::proto;
-use olympus_server::proto::hermes::{
+use crate::proto;
+use crate::proto::hermes::{
     AckOrVal, HermesMessage_HermesType, PaxosMessage_PaxosType, PeerMessage, PeerMessage_Type,
 };
-use client_interface::client::{Proto, Key, Value};
+use client_interface::client::{Key, Proto, Value};
 
 use crate::hermes::HermesMessage;
 use crate::paxos::{Content, PaxosMessage};
@@ -21,8 +21,8 @@ impl Proto<proto::hermes::Timestamp> for Timestamp {
     }
 }
 
-impl Proto<olympus_server::proto::hermes::HermesMessage> for HermesMessage {
-    fn from_proto(msg: &olympus_server::proto::hermes::HermesMessage) -> Self {
+impl Proto<crate::proto::hermes::HermesMessage> for HermesMessage {
+    fn from_proto(msg: &crate::proto::hermes::HermesMessage) -> Self {
         match msg.get_field_type() {
             HermesMessage_HermesType::Inv => {
                 let inv = msg.get_inv();
@@ -55,8 +55,8 @@ impl Proto<olympus_server::proto::hermes::HermesMessage> for HermesMessage {
         }
     }
 
-    fn to_proto(&self) -> olympus_server::proto::hermes::HermesMessage {
-        let mut msg = olympus_server::proto::hermes::HermesMessage::new();
+    fn to_proto(&self) -> crate::proto::hermes::HermesMessage {
+        let mut msg = crate::proto::hermes::HermesMessage::new();
         match self {
             HermesMessage::Inv {
                 sender_id,

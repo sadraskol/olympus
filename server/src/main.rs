@@ -13,8 +13,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 
-use olympus_server::config::{cfg, Config};
-use olympus_server::proto::hermes::{PeerMessage, PeerMessage_Type};
+use crate::config::{cfg, Config};
+use crate::proto::hermes::{PeerMessage, PeerMessage_Type};
 
 use crate::hermes::{ClientId, HMessage, Hermes};
 use crate::paxos::LeaseState;
@@ -22,8 +22,10 @@ use crate::proto_ser::ToPeerMessage;
 use crate::state::Member;
 use client_interface::client::{read_from, Answer, Proto};
 
+mod config;
 mod hermes;
 mod paxos;
+mod proto;
 mod proto_ser;
 mod state;
 
@@ -250,7 +252,10 @@ async fn client_listener(shared_state: SharedState) -> JoinHandle<()> {
             if let Ok((stream, _)) = listener.accept().await {
                 let state = shared_state.clone();
                 tokio::spawn(async move {
-                    client_socket_handler(state, stream).await.unwrap();
+                    match client_socket_handler(state, stream).await {
+                        Ok(_) => debug!("client socket ok"),
+                        Err(err) => error!("client socket error: {:?}", err),
+                    }
                 });
             }
             // else skip socket
@@ -316,6 +321,7 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std
 
     stream.write_u64(res.len() as u64).await?;
     stream.write_all(&res).await?;
+    stream.flush().await?;
 
     Ok(())
 }
@@ -345,5 +351,6 @@ async fn send_sync_message<T: ToPeerMessage + Debug>(
     let mut stream = TcpStream::connect(peer_socket).await?;
     let vec = message.as_peer().write_to_bytes()?;
     stream.write_u64(vec.len() as u64).await?;
-    stream.write_all(&vec).await
+    stream.write_all(&vec).await?;
+    stream.flush().await
 }
