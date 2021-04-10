@@ -9,6 +9,8 @@ use client_interface::client::{read_from, write_to, Key, Value};
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let mut client = "127.0.0.1:4241".to_string();
+    let mut stream = TcpStream::connect(&client).await?;
+
     loop {
         print!("olympus > ");
         stdout().flush().unwrap();
@@ -27,19 +29,20 @@ async fn main() -> std::io::Result<()> {
             match word {
                 "c" => {
                     if split.len() == 1 {
-                        println!("{}", client);
+                        println!("{}", client_turn);
                     } else {
                         client = split[1].to_string();
+                        stream = TcpStream::connect(&client).await?;
                     }
                 }
                 "r" => {
-                    match read(&client_turn, split[1]).await {
+                    match read(&mut stream, split[1]).await {
                         Ok(_) => {}
                         Err(err) => println!("{}", err),
                     };
                 }
                 "w" => {
-                    match write(&client_turn, split[1], split[2]).await {
+                    match write(&mut stream, split[1], split[2]).await {
                         Ok(_) => {}
                         Err(err) => println!("{}", err),
                     };
@@ -55,29 +58,25 @@ async fn main() -> std::io::Result<()> {
     }
 }
 
-async fn read(client: &str, key: &str) -> std::io::Result<()> {
-    let mut stream = TcpStream::connect(client).await?;
-
+async fn read(stream: &mut TcpStream, key: &str) -> std::io::Result<()> {
     let query = client::Query::read(Key(key.as_bytes().to_vec()));
-    write_to(&mut stream, &query).await?;
+    write_to(stream, &query).await?;
     stream.flush().await?;
-    let result: client::Answer = read_from(&mut stream).await?;
+    let result: client::Answer = read_from(stream).await?;
 
     println!("{:?}", result);
     Ok(())
 }
 
-async fn write(client: &str, key: &str, value: &str) -> std::io::Result<()> {
-    let mut stream = TcpStream::connect(client).await?;
-
+async fn write(stream: &mut TcpStream, key: &str, value: &str) -> std::io::Result<()> {
     let query = client::Query::write(
         Key(key.as_bytes().to_vec()),
         Value(value.as_bytes().to_vec()),
     );
-    write_to(&mut stream, &query).await?;
+    write_to(stream, &query).await?;
     stream.flush().await?;
 
-    let result: client::Answer = read_from(&mut stream).await?;
+    let result: client::Answer = read_from(stream).await?;
 
     println!("{:?}", result);
     Ok(())

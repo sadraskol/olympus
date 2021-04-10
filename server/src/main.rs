@@ -16,11 +16,11 @@ use tokio::task::JoinHandle;
 use crate::config::{cfg, Config};
 use crate::proto::hermes::{PeerMessage, PeerMessage_Type};
 
-use crate::hermes::{ClientId, HMessage, Hermes};
+use crate::hermes::{RequestId, HMessage, Hermes};
 use crate::paxos::LeaseState;
 use crate::proto_ser::ToPeerMessage;
 use crate::state::Member;
-use client_interface::client::{read_from, Answer, Proto};
+use client_interface::client::{read_from, Answer, Proto, Query, write_to};
 
 mod config;
 mod hermes;
@@ -47,8 +47,8 @@ impl ClientGen {
         }
     }
 
-    fn gen(&self) -> ClientId {
-        ClientId(
+    fn gen(&self) -> RequestId {
+        RequestId(
             self.current
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
         )
@@ -87,7 +87,7 @@ impl Membership {
 #[derive(Clone)]
 pub struct SharedState {
     cfg: Config,
-    answer_latches: Shared<HashMap<ClientId, AnswerLatch>>,
+    answer_latches: Shared<HashMap<RequestId, AnswerLatch>>,
     hermes: Shared<Hermes>,
     peers: Membership,
     client_gen: ClientGen,
@@ -106,6 +106,11 @@ impl SharedState {
             client_gen: ClientGen::new(),
         }
     }
+
+    fn run(&self, message: HMessage) -> Vec<HMessage> {
+        let mut guard = self.hermes.lock().unwrap();
+        guard.run(message)
+    }
 }
 
 #[tokio::main]
@@ -118,7 +123,7 @@ async fn main() -> std::io::Result<()> {
 
     let config = log4rs::Config::builder()
         .appender(Appender::builder().build("file", Box::new(file)))
-        .build(Root::builder().appender("file").build(LevelFilter::Debug))
+        .build(Root::builder().appender("file").build(LevelFilter::Info))
         .unwrap();
 
     log4rs::init_config(config).unwrap();
@@ -205,8 +210,7 @@ async fn peer_socket_handler(state: SharedState, mut stream: TcpStream) -> std::
             }
         };
 
-        let mut guard = state.hermes.lock().unwrap();
-        guard.run(hmessage)
+        state.run(hmessage)
     };
     for message in messages {
         match message {
@@ -264,65 +268,75 @@ async fn client_listener(shared_state: SharedState) -> JoinHandle<()> {
 }
 
 async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> std::io::Result<()> {
-    let client_id = state.client_gen.gen();
-    let pair = Arc::new((Mutex::new(None), Condvar::new()));
-    let local_pair = pair.clone();
-    {
-        let mut x = state.answer_latches.lock().unwrap();
-        x.insert(client_id.clone(), pair);
-    }
+    loop {
+        let query: Query = match read_from(&mut stream).await {
+            Ok(q) => q,
+            Err(err) => {
+                error!("error while reading {:?}", err);
+                return Ok(());
+            }
+        };
 
-    let messages = {
-        let query = read_from(&mut stream).await?;
-        let mut guard = state.hermes.lock().unwrap();
-        guard.run(HMessage::Client(client_id, query))
-    };
+        let pair = Arc::new((Mutex::new(None), Condvar::new()));
+        let local_pair = pair.clone();
+        let req_id = state.client_gen.gen();
+        {
+            let mut x = state.answer_latches.lock().unwrap();
+            x.insert(req_id.clone(), pair);
+        }
 
-    let mut maybe_response = None;
-    for message in messages {
-        match message {
-            HMessage::Client(_, _) => {
-                panic!("client message in return to a hermes run??");
-            }
-            HMessage::Answer(_, response) => {
-                maybe_response = Some(response);
-            }
-            HMessage::Sync(member, msg) => {
-                let shared_state_for_request = state.clone();
-                tokio::spawn(async move {
-                    send_message(shared_state_for_request, member, msg.clone()).await;
-                })
-                .await?;
-            }
-            HMessage::Paxos(member, msg) => {
-                let shared_state_for_request = state.clone();
-                tokio::spawn(async move {
-                    send_message(shared_state_for_request, member, msg.clone()).await;
-                })
-                .await?;
+        let messages = state.run(HMessage::Client(req_id, query));
+
+        let mut maybe_response = None;
+        for message in messages {
+            match message {
+                HMessage::Client(_, _) => {
+                    panic!("client message in return to a hermes run??");
+                }
+                HMessage::Answer(_, response) => {
+                    maybe_response = Some(response);
+                }
+                HMessage::Sync(member, msg) => {
+                    let shared_state_for_request = state.clone();
+                    tokio::spawn(async move {
+                        send_message(shared_state_for_request, member, msg.clone()).await;
+                    })
+                        .await?;
+                }
+                HMessage::Paxos(member, msg) => {
+                    let shared_state_for_request = state.clone();
+                    tokio::spawn(async move {
+                        send_message(shared_state_for_request, member, msg.clone()).await;
+                    })
+                        .await?;
+                }
             }
         }
-    }
 
-    let res = if let Some(response) = maybe_response {
-        response.to_proto().write_to_bytes()?
-    } else {
-        let (lock, cvar) = &*local_pair;
-        let mut guard = lock.lock().unwrap();
-        while (*guard).is_none() {
-            guard = cvar.wait(guard).unwrap();
-        }
-        if let Some(answer) = &*guard {
-            answer.to_proto().write_to_bytes()?
+        let res = if let Some(response) = maybe_response {
+            response
         } else {
-            panic!("no answer available, lock poisoned???");
+            let (lock, cvar) = &*local_pair;
+            let mut guard = lock.lock().unwrap();
+            while (*guard).is_none() {
+                guard = cvar.wait(guard).unwrap();
+            }
+            if let Some(answer) = &*guard {
+                answer.clone()
+            } else {
+                panic!("no answer available, lock poisoned???");
+            }
+        };
+
+        match write_to(&mut stream, &res).await {
+            Ok(_) => {}
+            Err(err) => {
+                error!("error while writing {:?}", err);
+                return Ok(());
+            }
         }
-    };
-
-    stream.write_u64(res.len() as u64).await?;
-    stream.write_all(&res).await?;
-    stream.flush().await?;
-
+        stream.flush().await?;
+    }
     Ok(())
 }
 
