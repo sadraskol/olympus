@@ -10,17 +10,17 @@ but a learning platform.
 There's a lot remaining to work on:
 
 - ~~The write replay feature~~
-- The Read-Modify-Write protocol
 - ~~Leases based on Paxos~~
+- ~~Various optimizations for TCP (namingly one socket per session)~~
+- The Read-Modify-Write protocol
 - Writes overlapping leases
-- Various optimizations for TCP
 
 Also, tests could go even further in order to verify the implementation
 against the TLA+ specification.
 
 ## How to test Olympus with Elle
 
-The setup is pretty cluncky but it goes this way:
+The setup is pretty clunky, but it goes this way:
 
 1. Run a cluster of olympus node (for instance with `./cluster.sh`)
 2. Run `cargo run --bin fuzz_par_rw` with stands for fuzzy parallel reads and writes
