@@ -12,6 +12,7 @@ There's a lot remaining to work on:
 - ~~The write replay feature~~
 - ~~Leases based on Paxos~~
 - ~~Various optimizations for TCP (namingly one socket per session)~~
+- Limit the number of tcp connect and use pools if applicable
 - The Read-Modify-Write protocol
 - Writes overlapping leases
 
