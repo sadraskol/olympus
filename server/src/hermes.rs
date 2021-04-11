@@ -284,8 +284,7 @@ impl Hermes {
 
                 for key in &self.keys_expecting_quorum.clone() {
                     if let Some(machine) = self.keys.get_mut(key) {
-                        if let Some(req_id) =
-                            machine.ack_write_against(&self.membership.members())
+                        if let Some(req_id) = machine.ack_write_against(&self.membership.members())
                         {
                             self.keys_expecting_quorum.remove(&key);
                             output.push(HMessage::Answer(
@@ -421,7 +420,7 @@ mod hermes_test {
     use crate::config::Config;
     use client_interface::client::{Query, WriteResult};
 
-    use crate::hermes::{Answer, RequestId, HMessage, Hermes, HermesMessage};
+    use crate::hermes::{Answer, HMessage, Hermes, HermesMessage, RequestId};
     use crate::paxos::{Content, PaxosMessage};
     use crate::state::{Member, Timestamp};
     use client_interface::client::{Key, Value};

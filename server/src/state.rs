@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
-use crate::hermes::{RequestId, Clock};
+use crate::hermes::{Clock, RequestId};
 use client_interface::client::{Value, WriteResult};
 
 const INVALIDATE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -197,7 +197,10 @@ mod test_reads {
             timestamp: Timestamp::new(0, 0),
         };
 
-        assert_eq!(state.read(&Clock::System, RequestId(1)), ReadResult::Pending);
+        assert_eq!(
+            state.read(&Clock::System, RequestId(1)),
+            ReadResult::Pending
+        );
     }
 
     #[test]
@@ -208,7 +211,10 @@ mod test_reads {
             timestamp: Timestamp::new(0, 0),
         };
 
-        assert_eq!(state.read(&Clock::System, RequestId(1)), ReadResult::Pending);
+        assert_eq!(
+            state.read(&Clock::System, RequestId(1)),
+            ReadResult::Pending
+        );
     }
 
     #[test]

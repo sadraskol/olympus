@@ -14,6 +14,7 @@ pub struct Config {
 }
 
 impl Config {
+    #[cfg(test)]
     pub fn test_setup(id: u16, peers: Vec<u16>) -> Self {
         Config {
             host: "".to_string(),
