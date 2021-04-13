@@ -32,6 +32,7 @@ impl Proto<crate::proto::hermes::HermesMessage> for HermesMessage {
                     key: Key(inv.get_key().to_vec()),
                     value: Value(inv.get_value().to_vec()),
                     ts: Proto::from_proto(inv.get_ts()),
+                    rmw: inv.get_rmw()
                 }
             }
             HermesMessage_HermesType::Val => {
@@ -64,6 +65,7 @@ impl Proto<crate::proto::hermes::HermesMessage> for HermesMessage {
                 key,
                 value,
                 ts: timestamp,
+                rmw
             } => {
                 msg.set_sender_id(*sender_id);
                 msg.set_field_type(HermesMessage_HermesType::Inv);
@@ -72,6 +74,7 @@ impl Proto<crate::proto::hermes::HermesMessage> for HermesMessage {
                 inval.set_key(key.0.clone());
                 inval.set_value(value.0.clone());
                 inval.set_ts(timestamp.to_proto());
+                inval.set_rmw(*rmw);
                 msg.set_inv(inval);
             }
             HermesMessage::Ack {

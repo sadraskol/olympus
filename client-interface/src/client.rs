@@ -116,16 +116,24 @@ impl Proto<queries::Answers> for Answer {
 pub enum Query {
     Read(Key),
     Write(Key, Value),
+    RMW(Key, Value)
 }
 
 impl Proto<queries::Commands> for Query {
     fn from_proto(msg: &queries::Commands) -> Self {
         match msg.get_field_type() {
             Commands_CommandType::Read => Query::Read(Key(msg.get_read().get_key().to_vec())),
-            Commands_CommandType::Write => Query::Write(
-                Key(msg.get_write().get_key().to_vec()),
-                Value(msg.get_write().get_value().to_vec()),
-            ),
+            Commands_CommandType::Write => if msg.get_write().get_rmw() {
+                Query::RMW(
+                    Key(msg.get_write().get_key().to_vec()),
+                    Value(msg.get_write().get_value().to_vec()),
+                )
+            } else {
+                Query::Write(
+                    Key(msg.get_write().get_key().to_vec()),
+                    Value(msg.get_write().get_value().to_vec()),
+                )
+            },
         }
     }
 
@@ -143,6 +151,17 @@ impl Proto<queries::Commands> for Query {
                 let mut write = queries::Write::new();
                 write.set_key(key.0.to_vec());
                 write.set_value(value.0.to_vec());
+                write.set_rmw(false);
+                let mut command = queries::Commands::new();
+                command.set_write(write);
+                command.set_field_type(queries::Commands_CommandType::Write);
+                command
+            }
+            Query::RMW(key, value) => {
+                let mut write = queries::Write::new();
+                write.set_key(key.0.to_vec());
+                write.set_value(value.0.to_vec());
+                write.set_rmw(true);
                 let mut command = queries::Commands::new();
                 command.set_write(write);
                 command.set_field_type(queries::Commands_CommandType::Write);

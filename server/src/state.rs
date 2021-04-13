@@ -26,7 +26,8 @@ enum State {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReadResult {
     Pending,
-    ReplayWrite(Timestamp, Value),
+    // ts, value and rmw flag of the write to replay
+    ReplayWrite(Timestamp, Value, bool),
     Value(Value),
 }
 
@@ -65,7 +66,7 @@ impl MachineValue {
             State::Inv(since) => {
                 if clock.elapsed(since) > INVALIDATE_TIMEOUT {
                     self.state = State::Write(client, HashSet::new());
-                    ReadResult::ReplayWrite(self.timestamp, self.value.clone())
+                    ReadResult::ReplayWrite(self.timestamp, self.value.clone(), false)
                 } else {
                     ReadResult::Pending
                 }
@@ -228,7 +229,7 @@ mod test_reads {
 
         assert_eq!(
             state.read(&Clock::System, RequestId(1)),
-            ReadResult::ReplayWrite(Timestamp::new(0, 0), Value(vec![1, 2, 3]))
+            ReadResult::ReplayWrite(Timestamp::new(0, 0), Value(vec![1, 2, 3]), false)
         );
         assert_eq!(
             state,

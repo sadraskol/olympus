@@ -7,6 +7,7 @@ message Read {
 message Write {
   required bytes key = 1;
   required bytes value = 2;
+  required bool rmw = 3;
 }
 
 message Commands {

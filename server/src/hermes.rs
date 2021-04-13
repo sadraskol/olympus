@@ -21,6 +21,7 @@ pub enum HermesMessage {
         key: Key,
         value: Value,
         ts: Timestamp,
+        rmw: bool,
     },
     Ack {
         // TODO replace with Member
@@ -45,6 +46,7 @@ impl HermesMessage {
         key: &Key,
         timestamp: &Timestamp,
         value: &Value,
+        rmw: bool
     ) -> Self {
         HermesMessage::Inv {
             sender_id,
@@ -52,6 +54,7 @@ impl HermesMessage {
             key: key.clone(),
             value: value.clone(),
             ts: *timestamp,
+            rmw
         }
     }
 
@@ -175,10 +178,11 @@ impl Hermes {
                             key,
                             value,
                             ts,
+                            rmw,
                         } => {
                             info!(
-                                "invalidate epoch_id: {}, key: {:?}, value: {:?}, ts: {:?}",
-                                epoch_id, key, value, ts
+                                "invalidate epoch_id: {}, key: {:?}, value: {:?}, ts: {:?}, rmw: {}",
+                                epoch_id, key, value, ts, rmw
                             );
                             // TODO if ts of message is older, do not increment!
                             self.ts.increment_to(&ts);
@@ -326,7 +330,7 @@ impl Hermes {
                                     .insert(key.clone(), vec![HMessage::Client(req_id, query)]);
                             }
                         }
-                        ReadResult::ReplayWrite(ts, value) => {
+                        ReadResult::ReplayWrite(ts, value, rmw) => {
                             self.keys_expecting_quorum.insert(key.clone());
                             for member in &self.membership.members() {
                                 output.push(HMessage::Sync(
@@ -337,6 +341,7 @@ impl Hermes {
                                         &key,
                                         &ts,
                                         &value,
+                                        rmw
                                     ),
                                 ))
                             }
@@ -350,56 +355,70 @@ impl Hermes {
                 }
             }
             Query::Write(key, value) => {
-                self.ts.increment();
-                info!(
-                    "writing key: {:?}, value: {:?}, ts: {:?}",
-                    key, value, self.ts
-                );
-
-                if let Some(machine) = self.keys.get_mut(&key) {
-                    let state = machine.write(req_id.clone(), value.clone(), self.ts);
-                    if state == WriteResult::Accepted {
-                        self.keys_expecting_quorum.insert(key.clone());
-                        for member in &self.membership.members() {
-                            output.push(HMessage::Sync(
-                                *member,
-                                HermesMessage::inv(
-                                    self.membership.self_id.0,
-                                    self.membership.current_epoch(),
-                                    &key,
-                                    &self.ts,
-                                    &value,
-                                ),
-                            ))
-                        }
-                    } else {
-                        output.push(HMessage::Answer(
-                            req_id,
-                            Answer::Write(WriteResult::Rejected),
-                        ))
-                    }
-                } else {
-                    self.keys.insert(
-                        key.clone(),
-                        MachineValue::write_value(req_id, value.clone(), self.ts),
-                    );
-                    for member in &self.membership.members() {
-                        self.keys_expecting_quorum.insert(key.clone());
-                        output.push(HMessage::Sync(
-                            *member,
-                            HermesMessage::inv(
-                                self.membership.self_id.0,
-                                self.membership.current_epoch(),
-                                &key,
-                                &self.ts,
-                                &value,
-                            ),
-                        ))
-                    }
-                }
+                self.write(&mut output, req_id, key, value, false);
+            },
+            Query::RMW(key, value) => {
+                self.write(&mut output, req_id, key, value, false);
             }
         }
         output
+    }
+
+    fn write(&mut self, output: &mut Vec<HMessage>, req_id: RequestId, key: &Key, value: &Value, rmw: bool) {
+        if rmw {
+            self.ts.increment();
+        } else {
+            self.ts.increment();
+            self.ts.increment();
+        }
+        info!(
+            "writing key: {:?}, value: {:?}, ts: {:?}, rmw: {}",
+            key, value, self.ts, rmw
+        );
+
+        if let Some(machine) = self.keys.get_mut(&key) {
+            let state = machine.write(req_id.clone(), value.clone(), self.ts);
+            if state == WriteResult::Accepted {
+                self.keys_expecting_quorum.insert(key.clone());
+                for member in &self.membership.members() {
+                    output.push(HMessage::Sync(
+                        *member,
+                        HermesMessage::inv(
+                            self.membership.self_id.0,
+                            self.membership.current_epoch(),
+                            &key,
+                            &self.ts,
+                            &value,
+                            rmw
+                        ),
+                    ))
+                }
+            } else {
+                output.push(HMessage::Answer(
+                    req_id,
+                    Answer::Write(WriteResult::Rejected),
+                ))
+            }
+        } else {
+            self.keys.insert(
+                key.clone(),
+                MachineValue::write_value(req_id, value.clone(), self.ts),
+            );
+            for member in &self.membership.members() {
+                self.keys_expecting_quorum.insert(key.clone());
+                output.push(HMessage::Sync(
+                    *member,
+                    HermesMessage::inv(
+                        self.membership.self_id.0,
+                        self.membership.current_epoch(),
+                        &key,
+                        &self.ts,
+                        &value,
+                        rmw
+                    ),
+                ))
+            }
+        }
     }
 
     pub fn lease_state(&self) -> LeaseState {
@@ -539,7 +558,7 @@ mod hermes_test {
         let key = Key(vec![35, 36, 37]);
         let value = Value(vec![1, 2, 3]);
 
-        let expected_ts = Timestamp::new(1, 2);
+        let expected_ts = Timestamp::new(2, 2);
         assert_msg_eq!(
             hermes.run(HMessage::Client(
                 RequestId(1),
@@ -548,11 +567,11 @@ mod hermes_test {
             vec![
                 HMessage::Sync(
                     Member(1),
-                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value, false)
                 ),
                 HMessage::Sync(
                     Member(3),
-                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value, false)
                 ),
             ],
         );
@@ -588,7 +607,7 @@ mod hermes_test {
         assert_msg_eq!(
             hermes.run(HMessage::Sync(
                 Member(2),
-                HermesMessage::inv(2, 1, &key, &timestamp, &value),
+                HermesMessage::inv(2, 1, &key, &timestamp, &value, false),
             )),
             vec![HMessage::Sync(
                 Member(2),
@@ -617,7 +636,7 @@ mod hermes_test {
         assert_msg_eq!(
             hermes.run(HMessage::Sync(
                 Member(3),
-                HermesMessage::inv(2, 1, &key, &timestamp, &value),
+                HermesMessage::inv(2, 1, &key, &timestamp, &value, false),
             )),
             vec![HMessage::Sync(
                 Member(3),
@@ -649,14 +668,14 @@ mod hermes_test {
 
         hermes.run(HMessage::Sync(
             Member(3),
-            HermesMessage::inv(3, 1, &key, &timestamp, &other_value),
+            HermesMessage::inv(3, 1, &key, &timestamp, &other_value, false),
         ));
         hermes.run(HMessage::Sync(
             Member(3),
             HermesMessage::val(3, 1, &key, &timestamp),
         ));
 
-        let expected_ts = Timestamp::new(2, 2);
+        let expected_ts = Timestamp::new(3, 2);
         assert_msg_eq!(
             hermes.run(HMessage::Client(
                 RequestId(1),
@@ -665,11 +684,11 @@ mod hermes_test {
             vec![
                 HMessage::Sync(
                     Member(1),
-                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value, false)
                 ),
                 HMessage::Sync(
                     Member(3),
-                    HermesMessage::inv(2, 1, &key, &expected_ts, &value)
+                    HermesMessage::inv(2, 1, &key, &expected_ts, &value, false)
                 ),
             ],
         );
@@ -683,7 +702,7 @@ mod hermes_test {
         let value = Value(vec![1, 2, 3]);
         let other_value = Value(vec![40, 41, 42]);
 
-        let timestamp = Timestamp::new(1, 3);
+        let timestamp = Timestamp::new(2, 3);
 
         hermes.run(HMessage::Client(
             RequestId(2),
@@ -692,7 +711,7 @@ mod hermes_test {
         assert_msg_eq!(
             hermes.run(HMessage::Sync(
                 Member(3),
-                HermesMessage::inv(2, 1, &key, &timestamp, &other_value),
+                HermesMessage::inv(2, 1, &key, &timestamp, &other_value, false),
             )),
             vec![
                 HMessage::Answer(RequestId(2), Answer::Write(WriteResult::Rejected)),
@@ -728,7 +747,7 @@ mod hermes_test {
             )),
             vec![HMessage::Sync(
                 Member(1),
-                HermesMessage::inv(2, 123, &key, &timestamp, &value)
+                HermesMessage::inv(2, 123, &key, &timestamp, &value, false)
             ),],
         );
     }
@@ -740,7 +759,7 @@ mod hermes_test {
 
         let key = Key(vec![35, 36, 37]);
         let value = Value(vec![1, 2, 3]);
-        let expected_ts = Timestamp::new(1, 2);
+        let expected_ts = Timestamp::new(2, 2);
 
         hermes.run(HMessage::Client(
             RequestId(2),
@@ -772,7 +791,7 @@ mod hermes_test {
 
         hermes.run(HMessage::Sync(
             Member(3),
-            HermesMessage::inv(3, 1, &key, &timestamp, &value),
+            HermesMessage::inv(3, 1, &key, &timestamp, &value, false),
         ));
         hermes.internal_clock.add(Duration::from_secs(11));
 
@@ -781,11 +800,11 @@ mod hermes_test {
             vec![
                 HMessage::Sync(
                     Member(1),
-                    HermesMessage::inv(2, 1, &key, &timestamp, &value)
+                    HermesMessage::inv(2, 1, &key, &timestamp, &value, false)
                 ),
                 HMessage::Sync(
                     Member(3),
-                    HermesMessage::inv(2, 1, &key, &timestamp, &value)
+                    HermesMessage::inv(2, 1, &key, &timestamp, &value, false)
                 ),
             ],
         );
@@ -822,7 +841,7 @@ mod hermes_test {
         assert_msg_eq!(
             hermes.run(HMessage::Sync(
                 Member(3),
-                HermesMessage::inv(2, 1, &key, &timestamp, &value)
+                HermesMessage::inv(2, 1, &key, &timestamp, &value, false)
             )),
             vec![HMessage::Sync(
                 Member(3),
