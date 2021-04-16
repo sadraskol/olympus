@@ -14,3 +14,6 @@ protobuf = "2.18.1"
 [build-dependencies]
 protoc-rust = "2.18.1"
 
+[lib]
+doctest = false
+

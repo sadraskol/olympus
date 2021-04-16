@@ -200,7 +200,6 @@ pub struct Write {
     // message fields
     key: ::protobuf::SingularField<::std::vec::Vec<u8>>,
     value: ::protobuf::SingularField<::std::vec::Vec<u8>>,
-    rmw: ::std::option::Option<bool>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -288,25 +287,6 @@ impl Write {
     pub fn take_value(&mut self) -> ::std::vec::Vec<u8> {
         self.value.take().unwrap_or_else(|| ::std::vec::Vec::new())
     }
-
-    // required bool rmw = 3;
-
-
-    pub fn get_rmw(&self) -> bool {
-        self.rmw.unwrap_or(false)
-    }
-    pub fn clear_rmw(&mut self) {
-        self.rmw = ::std::option::Option::None;
-    }
-
-    pub fn has_rmw(&self) -> bool {
-        self.rmw.is_some()
-    }
-
-    // Param is passed by value, moved
-    pub fn set_rmw(&mut self, v: bool) {
-        self.rmw = ::std::option::Option::Some(v);
-    }
 }
 
 impl ::protobuf::Message for Write {
@@ -315,9 +295,6 @@ impl ::protobuf::Message for Write {
             return false;
         }
         if self.value.is_none() {
-            return false;
-        }
-        if self.rmw.is_none() {
             return false;
         }
         true
@@ -332,13 +309,6 @@ impl ::protobuf::Message for Write {
                 },
                 2 => {
                     ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.value)?;
-                },
-                3 => {
-                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
-                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
-                    }
-                    let tmp = is.read_bool()?;
-                    self.rmw = ::std::option::Option::Some(tmp);
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -358,9 +328,6 @@ impl ::protobuf::Message for Write {
         if let Some(ref v) = self.value.as_ref() {
             my_size += ::protobuf::rt::bytes_size(2, &v);
         }
-        if let Some(v) = self.rmw {
-            my_size += 2;
-        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -372,9 +339,6 @@ impl ::protobuf::Message for Write {
         }
         if let Some(ref v) = self.value.as_ref() {
             os.write_bytes(2, &v)?;
-        }
-        if let Some(v) = self.rmw {
-            os.write_bool(3, v)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -424,11 +388,6 @@ impl ::protobuf::Message for Write {
                 |m: &Write| { &m.value },
                 |m: &mut Write| { &mut m.value },
             ));
-            fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
-                "rmw",
-                |m: &Write| { &m.rmw },
-                |m: &mut Write| { &mut m.rmw },
-            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<Write>(
                 "Write",
                 fields,
@@ -447,7 +406,6 @@ impl ::protobuf::Clear for Write {
     fn clear(&mut self) {
         self.key.clear();
         self.value.clear();
-        self.rmw = ::std::option::Option::None;
         self.unknown_fields.clear();
     }
 }
@@ -1520,21 +1478,20 @@ impl ::protobuf::reflect::ProtobufValue for Answers_AnswerType {
 
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n\rqueries.proto\"\x18\n\x04Read\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\
-    \x03key\"A\n\x05Write\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\x12\
-    \x14\n\x05value\x18\x02\x20\x02(\x0cR\x05value\x12\x10\n\x03rmw\x18\x03\
-    \x20\x02(\x08R\x03rmw\"\x92\x01\n\x08Commands\x12)\n\x04type\x18\x01\x20\
-    \x02(\x0e2\x15.Commands.CommandTypeR\x04type\x12\x19\n\x04read\x18\x02\
-    \x20\x01(\x0b2\x05.ReadR\x04read\x12\x1c\n\x05write\x18\x03\x20\x01(\x0b\
-    2\x06.WriteR\x05write\"\"\n\x0bCommandType\x12\x08\n\x04Read\x10\0\x12\t\
-    \n\x05Write\x10\x01\"9\n\nReadAnswer\x12\x15\n\x06is_nil\x18\x01\x20\x02\
-    (\x08R\x05isNil\x12\x14\n\x05value\x18\x02\x20\x01(\x0cR\x05value\"[\n\
-    \x0bWriteAnswer\x12*\n\x04code\x18\x01\x20\x02(\x0e2\x16.WriteAnswer.Wri\
-    teTypeR\x04code\"\x20\n\tWriteType\x12\x06\n\x02Ok\x10\0\x12\x0b\n\x07Re\
-    fused\x10\x01\"\x9a\x01\n\x07Answers\x12'\n\x04type\x18\x01\x20\x02(\x0e\
-    2\x13.Answers.AnswerTypeR\x04type\x12\x1f\n\x04read\x18\x02\x20\x01(\x0b\
-    2\x0b.ReadAnswerR\x04read\x12\"\n\x05write\x18\x03\x20\x01(\x0b2\x0c.Wri\
-    teAnswerR\x05write\"!\n\nAnswerType\x12\x08\n\x04Read\x10\0\x12\t\n\x05W\
-    rite\x10\x01\
+    \x03key\"/\n\x05Write\x12\x10\n\x03key\x18\x01\x20\x02(\x0cR\x03key\x12\
+    \x14\n\x05value\x18\x02\x20\x02(\x0cR\x05value\"\x92\x01\n\x08Commands\
+    \x12)\n\x04type\x18\x01\x20\x02(\x0e2\x15.Commands.CommandTypeR\x04type\
+    \x12\x19\n\x04read\x18\x02\x20\x01(\x0b2\x05.ReadR\x04read\x12\x1c\n\x05\
+    write\x18\x03\x20\x01(\x0b2\x06.WriteR\x05write\"\"\n\x0bCommandType\x12\
+    \x08\n\x04Read\x10\0\x12\t\n\x05Write\x10\x01\"9\n\nReadAnswer\x12\x15\n\
+    \x06is_nil\x18\x01\x20\x02(\x08R\x05isNil\x12\x14\n\x05value\x18\x02\x20\
+    \x01(\x0cR\x05value\"[\n\x0bWriteAnswer\x12*\n\x04code\x18\x01\x20\x02(\
+    \x0e2\x16.WriteAnswer.WriteTypeR\x04code\"\x20\n\tWriteType\x12\x06\n\
+    \x02Ok\x10\0\x12\x0b\n\x07Refused\x10\x01\"\x9a\x01\n\x07Answers\x12'\n\
+    \x04type\x18\x01\x20\x02(\x0e2\x13.Answers.AnswerTypeR\x04type\x12\x1f\n\
+    \x04read\x18\x02\x20\x01(\x0b2\x0b.ReadAnswerR\x04read\x12\"\n\x05write\
+    \x18\x03\x20\x01(\x0b2\x0c.WriteAnswerR\x05write\"!\n\nAnswerType\x12\
+    \x08\n\x04Read\x10\0\x12\t\n\x05Write\x10\x01\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

@@ -125,7 +125,6 @@ async fn client_socket_handler(state: SharedState, mut stream: TcpStream) -> Res
         }
         stream.flush().await?;
     }
-    Ok(())
 }
 
 async fn send_message<M: ToPeerMessage + Debug + Clone>(
